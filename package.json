@@ -1,5 +1,5 @@
 {
-      "name": "Sistema de Seguridad y Control",
+      "name": "sistema-de-seguridad-y-control",
       "version": "0.1.0",
       "private": true,
       "type": "module",
@@ -35,10 +35,15 @@
             "class-variance-authority": "^0.7.1",
             "clsx": "*",
             "cmdk": "^1.1.1",
+            "cors": "^2.8.5",
+            "dotenv": "^17.2.3",
             "embla-carousel-react": "^8.6.0",
+            "express": "^5.1.0",
             "input-otp": "^1.4.2",
             "lucide-react": "^0.487.0",
+            "mysql2": "^3.15.3",
             "next-themes": "^0.4.6",
+            "path": "^0.12.7",
             "postcss": "^8.5.6",
             "react": "^18.3.1",
             "react-day-picker": "^8.10.1",
@@ -60,5 +65,18 @@
       "scripts": {
             "dev": "vite",
             "build": "vite build"
-      }
+      },
+      "description": "This is a code bundle for Sistema de Seguridad y Control. The original project is available at https://www.figma.com/design/UzwMTVsKsNvK5QpxwChJ1L/Sistema-de-Seguridad-y-Control.",
+      "main": "postcss.config.js",
+      "repository": {
+            "type": "git",
+            "url": "git+https://github.com/ITSPP2024/Sistema-de-control-de-acceso.git"
+      },
+      "keywords": [],
+      "author": "",
+      "license": "ISC",
+      "bugs": {
+            "url": "https://github.com/ITSPP2024/Sistema-de-control-de-acceso/issues"
+      },
+      "homepage": "https://github.com/ITSPP2024/Sistema-de-control-de-acceso#readme"
 }
