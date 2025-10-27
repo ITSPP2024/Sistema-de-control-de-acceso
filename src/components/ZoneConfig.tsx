@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "./ui/card";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -11,95 +11,88 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Plus, Settings, Shield, Clock, Users, Map, List, Activity, AlertCircle, Link2, Unlink, Route } from "lucide-react";
 
-const mockZones = [
-  {
-    id: 1,
-    name: "Taller Principal",
-    description: "Área de reparación y mantenimiento de vehículos",
-    accessLevel: "Medio",
-    isActive: true,
-    allowedUsers: 8,
-    totalUsers: 15,
-    schedule: "06:00 - 22:00",
-    requiresEscort: false,
-    maxOccupancy: 12,
-    currentOccupancy: 3,
-    position: { x: 100, y: 80 },
-    size: { width: 280, height: 220 },
-    color: "#3b82f6"
-  },
-  {
-    id: 2,
-    name: "Área de Ventas",
-    description: "Showroom y oficinas de ventas",
-    accessLevel: "Bajo",
-    isActive: true,
-    allowedUsers: 12,
-    totalUsers: 15,
-    schedule: "08:00 - 20:00",
-    requiresEscort: false,
-    maxOccupancy: 20,
-    currentOccupancy: 7,
-    position: { x: 420, y: 80 },
-    size: { width: 300, height: 200 },
-    color: "#10b981"
-  },
-  {
-    id: 3,
-    name: "Administración",
-    description: "Oficinas administrativas y contabilidad",
-    accessLevel: "Alto",
-    isActive: true,
-    allowedUsers: 5,
-    totalUsers: 15,
-    schedule: "08:00 - 18:00",
-    requiresEscort: true,
-    maxOccupancy: 8,
-    currentOccupancy: 2,
-    position: { x: 100, y: 340 },
-    size: { width: 220, height: 180 },
-    color: "#ef4444"
-  },
-  {
-    id: 4,
-    name: "Almacén de Repuestos",
-    description: "Depósito de repuestos y herramientas especializadas",
-    accessLevel: "Alto",
-    isActive: false,
-    allowedUsers: 3,
-    totalUsers: 15,
-    schedule: "09:00 - 17:00",
-    requiresEscort: true,
-    maxOccupancy: 5,
-    currentOccupancy: 0,
-    position: { x: 470, y: 320 },
-    size: { width: 240, height: 190 },
-    color: "#f59e0b"
-  }
-];
+interface Zone {
+  id: number;
+  name: string;
+  description: string;
+  accessLevel: string;
+  isActive: boolean;
+  allowedUsers: number;
+  totalUsers: number;
+  schedule: string;
+  requiresEscort: boolean;
+  maxOccupancy: number;
+  currentOccupancy: number;
+  position: { x: number; y: number };
+  size: { width: number; height: number };
+  color: string;
+}
 
-const mockConnections = [
-  { from: 1, to: 2, label: "Pasillo Principal" },
-  { from: 2, to: 3, label: "Entrada Administrativa" },
-  { from: 1, to: 3, label: "Acceso Directo" },
-];
+interface Connection {
+  from: number;
+  to: number;
+  label: string;
+}
 
 export function ZoneConfig() {
-  const [zones, setZones] = useState(mockZones);
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [zones, setZones] = useState<Zone[]>([]);
+  const [connections, setConnections] = useState<Connection[]>([]);
   const [selectedZone, setSelectedZone] = useState<number | null>(null);
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [editingZone, setEditingZone] = useState<Zone | null>(null);
   const [draggingZone, setDraggingZone] = useState<number | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
-  const [connections, setConnections] = useState(mockConnections);
   const [showConnections, setShowConnections] = useState(true);
   const [connectingMode, setConnectingMode] = useState(false);
   const [connectingFrom, setConnectingFrom] = useState<number | null>(null);
+  const [newZoneName, setNewZoneName] = useState("");
+  const [newZoneDescription, setNewZoneDescription] = useState("");
+  const [newZoneAccess, setNewZoneAccess] = useState("1");
+  const [newZoneMaxOccupancy, setNewZoneMaxOccupancy] = useState(10);
+  const [newZoneRequiresEscort, setNewZoneRequiresEscort] = useState(false);
+  const [newZoneStartTime, setNewZoneStartTime] = useState("");
+  const [newZoneEndTime, setNewZoneEndTime] = useState("");
 
+  // =============================
+  // 🔹 Cargar datos desde backend
+  // =============================
+  useEffect(() => {
+      fetch("http://localhost:5001/api/zonas")
+      .then(res => res.json())
+      .then(data => {
+        // Transformamos para adaptarlo al tipo Zone
+        const loadedZones: Zone[] = data.map((z: any) => ({
+          id: z.idzonas,
+          name: z.nombre_zona,
+          position: { x: z.pos_x || 100, y: z.pos_y || 100 },
+          description: z.descripcion_zona || "",
+          accessLevel: z.nivel_seguridad_zona,
+          isActive: z.estado_zona === "Activa",
+          allowedUsers: 0, // Podrías agregar desde API si existe
+          totalUsers: 0,
+          schedule: `${z.horario_inicio_zona || "--:--"} - ${z.horario_fin_zona || "--:--"}`,
+          requiresEscort: false,
+          maxOccupancy: z.capacidad_maxima_zona || 10,
+          currentOccupancy: 0,
+          position: { x: 100, y: 100 }, // Por defecto, luego puedes guardar coords
+          size: { width: 240, height: 180 },
+          color: "#3b82f6"
+        }));
+        setZones(loadedZones);
+      })
+      .catch(err => console.error("Error cargando zonas:", err));
+  }, []);
+
+  // =============================
+  // 🔹 Funciones auxiliares
+  // =============================
   const getAccessLevelColor = (level: string) => {
     switch (level) {
-      case "Alto": return "destructive";
-      case "Medio": return "default";
-      case "Bajo": return "secondary";
+      case "5": return "destructive";
+      case "4": return "default";
+      case "3": return "default";
+      case "2": return "secondary";
+      case "1": return "secondary";
       default: return "default";
     }
   };
@@ -112,20 +105,29 @@ export function ZoneConfig() {
   };
 
   const toggleZoneStatus = (zoneId: number) => {
-    setZones(zones.map(zone => 
-      zone.id === zoneId ? { ...zone, isActive: !zone.isActive } : zone
-    ));
+    const zone = zones.find(z => z.id === zoneId);
+    if (!zone) return;
+
+    const newStatus = !zone.isActive;
+    fetch(`http://localhost:5001/api/zonas/${zoneId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...zone, estado_zona: newStatus ? "Activa" : "Inactiva" })
+    }).then(res => {
+      if (!res.ok) console.error("Error actualizando zona");
+      setZones(zones.map(z => z.id === zoneId ? { ...z, isActive: newStatus } : z));
+    });
   };
 
   const handleMouseDown = (zoneId: number, e: React.MouseEvent<HTMLDivElement>) => {
     const zone = zones.find(z => z.id === zoneId);
     if (!zone) return;
-    
+
     const mapContainer = e.currentTarget.parentElement;
     if (!mapContainer) return;
 
     const rect = mapContainer.getBoundingClientRect();
-    
+
     setDraggingZone(zoneId);
     setDragOffset({
       x: e.clientX - rect.left - zone.position.x,
@@ -155,21 +157,15 @@ export function ZoneConfig() {
 
   const handleZoneClick = (zoneId: number, e: React.MouseEvent) => {
     e.stopPropagation();
-    
     if (connectingMode) {
       if (connectingFrom === null) {
         setConnectingFrom(zoneId);
       } else if (connectingFrom !== zoneId) {
-        // Crear conexión
-        const existingConnection = connections.find(
-          c => (c.from === connectingFrom && c.to === zoneId) || 
-               (c.from === zoneId && c.to === connectingFrom)
+        const existing = connections.find(c =>
+          (c.from === connectingFrom && c.to === zoneId) ||
+          (c.from === zoneId && c.to === connectingFrom)
         );
-        
-        if (!existingConnection) {
-          setConnections([...connections, { from: connectingFrom, to: zoneId, label: "Conexión" }]);
-        }
-        
+        if (!existing) setConnections([...connections, { from: connectingFrom, to: zoneId, label: "Conexión" }]);
         setConnectingFrom(null);
         setConnectingMode(false);
       }
@@ -179,23 +175,16 @@ export function ZoneConfig() {
   };
 
   const removeConnection = (from: number, to: number) => {
-    setConnections(connections.filter(c => 
-      !((c.from === from && c.to === to) || (c.from === to && c.to === from))
-    ));
+    setConnections(connections.filter(c => !((c.from === from && c.to === to) || (c.from === to && c.to === from))));
   };
 
-  const getZoneCenter = (zone: typeof mockZones[0]) => {
-    return {
-      x: zone.position.x + zone.size.width / 2,
-      y: zone.position.y + zone.size.height / 2
-    };
-  };
+  const getZoneCenter = (zone: Zone) => ({
+    x: zone.position.x + zone.size.width / 2,
+    y: zone.position.y + zone.size.height / 2
+  });
 
   const selectedZoneData = selectedZone ? zones.find(z => z.id === selectedZone) : null;
-  const selectedZoneConnections = selectedZone 
-    ? connections.filter(c => c.from === selectedZone || c.to === selectedZone)
-    : [];
-
+  const selectedZoneConnections = selectedZone ? connections.filter(c => c.from === selectedZone || c.to === selectedZone) : [];
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -205,60 +194,197 @@ export function ZoneConfig() {
             Gestionar zonas de acceso y permisos
           </p>
         </div>
-        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="w-4 h-4 mr-2" />
-              Nueva Zona
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>Crear Nueva Zona</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="zoneName">Nombre de la Zona</Label>
-                <Input id="zoneName" placeholder="Ej: Área de Repuestos" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="zoneDescription">Descripción</Label>
-                <Textarea id="zoneDescription" placeholder="Describe el propósito de esta zona" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="accessLevel">Nivel de Acceso Requerido</Label>
-                <Select>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar nivel" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="bajo">Bajo</SelectItem>
-                    <SelectItem value="medio">Medio</SelectItem>
-                    <SelectItem value="alto">Alto</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="maxOccupancy">Ocupación Máxima</Label>
-                <Input id="maxOccupancy" type="number" placeholder="10" />
-              </div>
-              <div className="flex items-center space-x-2">
-                <Switch id="requiresEscort" />
-                <Label htmlFor="requiresEscort">Requiere acompañante autorizado</Label>
-              </div>
-              <div className="flex space-x-2 pt-2">
-                <Button variant="outline" className="flex-1" onClick={() => setIsAddDialogOpen(false)}>
-                  Cancelar
-                </Button>
-                <Button className="flex-1" onClick={() => setIsAddDialogOpen(false)}>
-                  Crear Zona
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
+         <Dialog open={isAddDialogOpen} onOpenChange={(open) => {
+  setIsAddDialogOpen(open);
+  if (!open) setEditingZone(null);
+}}>
+  <DialogTrigger asChild>
+    <Button>
+      <Plus className="w-4 h-4 mr-2" />
+      Nueva Zona
+    </Button>
+  </DialogTrigger>
+
+  <DialogContent className="max-w-md">
+    <DialogHeader>
+      <DialogTitle>{editingZone ? "Editar Zona" : "Crear Nueva Zona"}</DialogTitle>
+    </DialogHeader>
+
+    <div className="space-y-4">
+      {/* Nombre */}
+      <div className="space-y-2">
+        <Label htmlFor="zoneName">Nombre de la Zona</Label>
+        <Input
+          id="zoneName"
+          placeholder="Ej: Área de Repuestos"
+          value={newZoneName}
+          onChange={(e) => setNewZoneName(e.target.value)}
+        />
       </div>
 
+      {/* Descripción */}
+      <div className="space-y-2">
+        <Label htmlFor="zoneDescription">Descripción</Label>
+        <Textarea
+          id="zoneDescription"
+          placeholder="Describe el propósito de esta zona"
+          value={newZoneDescription}
+          onChange={(e) => setNewZoneDescription(e.target.value)}
+        />
+      </div>
+
+      {/* Nivel de acceso */}
+      <div className="space-y-2">
+        <Label htmlFor="accessLevel">Nivel de Acceso Requerido</Label>
+        <Select
+          value={newZoneAccess}
+          onValueChange={(value) => setNewZoneAccess(value)}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Seleccionar nivel" />
+          </SelectTrigger>
+          <SelectContent>
+            {[1, 2, 3, 4, 5].map((n) => (
+              <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Ocupación máxima */}
+      <div className="space-y-2">
+        <Label htmlFor="maxOccupancy">Ocupación Máxima</Label>
+        <Input
+          id="maxOccupancy"
+          type="number"
+          value={newZoneMaxOccupancy}
+          onChange={(e) => setNewZoneMaxOccupancy(parseInt(e.target.value))}
+        />
+      </div>
+
+      {/* 🕒 Horario */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="startTime">Hora de inicio</Label>
+          <Input
+            id="startTime"
+            type="time"
+            value={newZoneStartTime}
+            onChange={(e) => setNewZoneStartTime(e.target.value)}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="endTime">Hora de fin</Label>
+          <Input
+            id="endTime"
+            type="time"
+            value={newZoneEndTime}
+            onChange={(e) => setNewZoneEndTime(e.target.value)}
+          />
+        </div>
+      </div>
+
+      {/* Escolta */}
+      <div className="flex items-center space-x-2">
+        <Switch
+          id="requiresEscort"
+          checked={newZoneRequiresEscort}
+          onCheckedChange={setNewZoneRequiresEscort}
+        />
+        <Label htmlFor="requiresEscort">Requiere acompañante autorizado</Label>
+      </div>
+
+      {/* Botones */}
+      <div className="flex space-x-2 pt-2">
+        <Button variant="outline" className="flex-1" onClick={() => setIsAddDialogOpen(false)}>
+          Cancelar
+        </Button>
+
+        <Button
+          className="flex-1"
+          onClick={async () => {
+            const zoneData = {
+              nombre_zona: newZoneName,
+              descripcion_zona: newZoneDescription,
+              nivel_seguridad_zona: newZoneAccess,
+              capacidad_maxima_zona: newZoneMaxOccupancy,
+              horario_inicio_zona: newZoneStartTime || null,
+              horario_fin_zona: newZoneEndTime || null,
+              requiresEscort: newZoneRequiresEscort,
+              estado_zona: "Activa",
+            };
+
+            try {
+              let res, updatedZone;
+
+              if (editingZone) {
+                res = await fetch(`http://localhost:5001/api/zonas/${editingZone.id}`, {
+                  method: "PUT",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify(zoneData),
+                });
+                updatedZone = await res.json();
+
+                setZones(zones.map(z => z.id === editingZone.id ? {
+                  ...z,
+                  name: updatedZone.nombre_zona,
+                  description: updatedZone.descripcion_zona,
+                  accessLevel: updatedZone.nivel_seguridad_zona,
+                  maxOccupancy: updatedZone.capacidad_maxima_zona,
+                  schedule: `${updatedZone.horario_inicio_zona || "--:--"} - ${updatedZone.horario_fin_zona || "--:--"}`,
+                  requiresEscort: updatedZone.requiresEscort || false
+                } : z));
+              } else {
+                res = await fetch("http://localhost:5001/api/zonas", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify(zoneData),
+                });
+                updatedZone = await res.json();
+
+                setZones([
+                  ...zones,
+                  {
+                    id: updatedZone.idzonas,
+                    name: updatedZone.nombre_zona,
+                    description: updatedZone.descripcion_zona,
+                    accessLevel: updatedZone.nivel_seguridad_zona,
+                    isActive: true,
+                    allowedUsers: 0,
+                    totalUsers: 0,
+                    schedule: `${newZoneStartTime || "--:--"} - ${newZoneEndTime || "--:--"}`,
+                    requiresEscort: updatedZone.requiresEscort || false,
+                    maxOccupancy: updatedZone.capacidad_maxima_zona,
+                    currentOccupancy: 0,
+                    position: { x: 100, y: 100 },
+                    size: { width: 240, height: 180 },
+                    color: "#3b82f6",
+                  },
+                ]);
+              }
+
+              setIsAddDialogOpen(false);
+              setEditingZone(null);
+              setNewZoneName("");
+              setNewZoneDescription("");
+              setNewZoneAccess("1");
+              setNewZoneMaxOccupancy(10);
+              setNewZoneRequiresEscort(false);
+              setNewZoneStartTime("");
+              setNewZoneEndTime("");
+            } catch (err) {
+              console.error(err);
+              alert("Error al guardar la zona");
+            }
+          }}
+        >
+          {editingZone ? "Guardar Cambios" : "Crear Zona"}
+        </Button>
+      </div>
+    </div>
+  </DialogContent>
+</Dialog>
+      </div>
       <Tabs defaultValue="list" className="w-full">
         <TabsList className="grid w-full max-w-md grid-cols-2">
           <TabsTrigger value="list" className="flex items-center gap-2">
@@ -298,9 +424,45 @@ export function ZoneConfig() {
                         checked={zone.isActive}
                         onCheckedChange={() => toggleZoneStatus(zone.id)}
                       />
-                      <Button variant="outline" size="sm">
-                        <Settings className="w-4 h-4" />
-                      </Button>
+                      <Button
+  variant="outline"
+  size="sm"
+  onClick={() => {
+    const z = zone;
+    setEditingZone(z);
+    setNewZoneName(z.name);
+    setNewZoneDescription(z.description);
+    setNewZoneAccess(z.accessLevel);
+    setNewZoneMaxOccupancy(z.maxOccupancy);
+    setNewZoneRequiresEscort(z.requiresEscort);
+    setNewZoneStartTime(z.schedule.split(" - ")[0] === "--:--" ? "" : z.schedule.split(" - ")[0]);
+    setNewZoneEndTime(z.schedule.split(" - ")[1] === "--:--" ? "" : z.schedule.split(" - ")[1]);
+    setIsAddDialogOpen(true);
+  }}
+>
+  <Settings className="w-4 h-4" />
+</Button>
+
+<Button
+  variant="destructive"
+  size="sm"
+  onClick={async () => {
+    if (!confirm(`¿Seguro que deseas eliminar la zona "${zone.name}"?`)) return;
+    try {
+      const res = await fetch(`http://localhost:5001/api/zonas/${zone.id}`, {
+        method: "DELETE"
+      });
+      if (!res.ok) throw new Error("Error eliminando zona");
+      setZones(zones.filter(z => z.id !== zone.id));
+    } catch (err) {
+      console.error(err);
+      alert("No se pudo eliminar la zona");
+    }
+  }}
+>
+  Eliminar
+</Button>
+
                     </div>
                   </div>
 

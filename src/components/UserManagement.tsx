@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from ".
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "./ui/dialog";
 import { Label } from "./ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
-import { Plus, Edit, Trash2, CreditCard, Camera } from "lucide-react";
+import { Plus, Edit, Trash2, Camera } from "lucide-react";
 
 export function UserManagement() {
   const [users, setUsers] = useState<any[]>([]);
@@ -20,78 +20,123 @@ export function UserManagement() {
   const [newUserPhoto, setNewUserPhoto] = useState<string | null>(null);
   const newUserPhotoInputRef = useRef<HTMLInputElement>(null);
   const editUserPhotoInputRef = useRef<HTMLInputElement>(null);
+  const [newUser, setNewUser] = useState({
+    nombre_usuario: "",
+    apellido_usuario: "",
+    correo_usuario: "",
+    telefono_usuario: "",
+    cargo_usuario: "",
+    nivel_acceso: "",
+    targeta_usuario: "",
+    photo: null
+  });
 
-  // ✅ Cargar usuarios desde el backend
+  // --- Función para cargar usuarios ---
+  const fetchUsers = () => {
+    axios.get("http://localhost:5001/api/usuarios")
+      .then(res => setUsers(res.data))
+      .catch(err => console.error("Error al cargar usuarios:", err));
+  };
+
   useEffect(() => {
-    axios.get("http://localhost:3001/api/usuarios")
-      .then((res) => {
-        setUsers(res.data);
-      })
-      .catch((err) => {
-        console.error("Error al cargar usuarios:", err);
-      });
+    fetchUsers();
   }, []);
 
-  // 🔍 Filtro de búsqueda
+  // --- Filtros ---
   const filteredUsers = users.filter(user =>
-    user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.department?.toLowerCase().includes(searchTerm.toLowerCase())
+    (`${user.nombre_usuario} ${user.apellido_usuario}`.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (user.correo_usuario?.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (user.cargo_usuario?.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  // 🎨 Funciones auxiliares
   const getAccessLevelColor = (level: string) => {
     switch (level) {
-      case "Alto": return "destructive";
-      case "Medio": return "default";
-      case "Bajo": return "secondary";
+      case "5": return "destructive";
+      case "3": return "default";
+      case "1": return "secondary";
       default: return "default";
     }
   };
 
-  const getStatusColor = (status: string) => {
-    return status === "Activo" ? "default" : "secondary";
-  };
+  const getStatusColor = (status: string) => status === "Activo" ? "default" : "secondary";
 
   const getInitials = (name: string) =>
-    name?.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2) || "";
+    name?.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2) || "NA";
 
-  // 📸 Subir foto
-  const handleNewUserPhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => setNewUserPhoto(reader.result as string);
-      reader.readAsDataURL(file);
+  // --- Crear usuario ---
+  const handleCreateUser = async () => {
+    if (!newUser.nombre_usuario || !newUser.apellido_usuario || !newUser.correo_usuario) {
+      alert("Completa todos los campos obligatorios.");
+      return;
+    }
+    if (users.some(u => u.correo_usuario === newUser.correo_usuario)) {
+      alert("Este correo ya está registrado.");
+      return;
+    }
+    try {
+      const res = await axios.post("http://localhost:5001/api/usuarios", newUser);
+      fetchUsers();
+      setIsAddDialogOpen(false);
+      setNewUserPhoto(null);
+      setNewUser({
+        nombre_usuario: "",
+        apellido_usuario: "",
+        correo_usuario: "",
+        telefono_usuario: "",
+        cargo_usuario: "",
+        nivel_acceso: "",
+        targeta_usuario: "",
+        photo: null
+      });
+    } catch (err) {
+      console.error("Error creando usuario:", err);
     }
   };
 
-  const handleEditUserPhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file && editingUser) {
-      const reader = new FileReader();
-      reader.onloadend = () =>
-        setEditingUser({ ...editingUser, photo: reader.result as string });
-      reader.readAsDataURL(file);
-    }
-  };
-
+  // --- Editar usuario ---
   const handleEditClick = (user: any) => {
     setEditingUser({ ...user });
     setIsEditDialogOpen(true);
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (editingUser) {
-      // Aquí puedes hacer un PUT al backend
-      setUsers(users.map(u => (u.id === editingUser.id ? editingUser : u)));
-      setIsEditDialogOpen(false);
-      setEditingUser(null);
+      try {
+        await axios.put(`http://localhost:5001/api/usuarios/${editingUser.idUsuarios}`, editingUser);
+        fetchUsers();
+        setIsEditDialogOpen(false);
+        setEditingUser(null);
+      } catch (err) {
+        console.error("Error editando usuario:", err);
+      }
+    }
+  };
+
+  // --- Eliminar usuario ---
+  const handleDeleteUser = async (id: string) => {
+    if (confirm("¿Deseas eliminar este usuario?")) {
+      try {
+        await axios.delete(`http://localhost:5001/api/usuarios/${id}`);
+        fetchUsers();
+      } catch (err) {
+        console.error("Error eliminando usuario:", err);
+      }
+    }
+  };
+
+  // --- Subir fotos ---
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>, setPhoto: Function) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => setPhoto(reader.result as string);
+      reader.readAsDataURL(file);
     }
   };
 
   return (
     <div className="space-y-6">
+      {/* Header y botón agregar */}
       <div className="flex items-center justify-between">
         <div>
           <h2>Gestión de Usuarios</h2>
@@ -106,119 +151,17 @@ export function UserManagement() {
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-md">
-  <DialogHeader>
-    <DialogTitle>Agregar Nuevo Usuario</DialogTitle>
-  </DialogHeader>
-
-  <div className="space-y-4">
-    {/* 📸 Foto de perfil */}
-    <div className="flex flex-col items-center space-y-3">
-      <Avatar className="w-24 h-24">
-        {newUserPhoto ? (
-          <AvatarImage src={newUserPhoto} alt="Nuevo usuario" />
-        ) : (
-          <AvatarFallback className="bg-blue-100 text-blue-600">
-            <Camera className="w-8 h-8" />
-          </AvatarFallback>
-        )}
-      </Avatar>
-      <input
-        ref={newUserPhotoInputRef}
-        type="file"
-        accept="image/*"
-        onChange={handleNewUserPhotoUpload}
-        className="hidden"
-      />
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => newUserPhotoInputRef.current?.click()}
-      >
-        <Camera className="w-4 h-4 mr-2" />
-        {newUserPhoto ? "Cambiar" : "Agregar"} Foto
-      </Button>
-    </div>
-
-    {/* 🧾 Campos de información */}
-    <div className="space-y-2">
-      <Label htmlFor="name">Nombre</Label>
-      <Input id="name" placeholder="Ingrese el nombre" />
-    </div>
-
-    <div className="space-y-2">
-      <Label htmlFor="apellido">Apellido</Label>
-      <Input id="apellido" placeholder="Ingrese el apellido" />
-    </div>
-
-    <div className="space-y-2">
-      <Label htmlFor="correo">Correo</Label>
-      <Input id="correo" placeholder="correo@empresa.com" />
-    </div>
-
-    <div className="space-y-2">
-      <Label htmlFor="telefono">Teléfono</Label>
-      <Input id="telefono" placeholder="123-123-1212" />
-    </div>
-
-    {/* 💼 Cargo */}
-    <div className="space-y-2">
-      <Label htmlFor="cargo">Cargo</Label>
-      <Select>
-        <SelectTrigger>
-          <SelectValue placeholder="Seleccionar cargo" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="Supervisor">Supervisor</SelectItem>
-          <SelectItem value="Seguridad">Seguridad</SelectItem>
-          <SelectItem value="Mantenimiento">Mantenimiento</SelectItem>
-          <SelectItem value="Administración">Administración</SelectItem>
-        </SelectContent>
-      </Select>
-    </div>
-
-    {/* 🔐 Nivel de acceso */}
-    <div className="space-y-2">
-      <Label htmlFor="nivelAcceso">Nivel de Acceso (1 a 5)</Label>
-      <Select>
-        <SelectTrigger>
-          <SelectValue placeholder="Seleccionar nivel" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="1">1 - Bajo</SelectItem>
-          <SelectItem value="2">2</SelectItem>
-          <SelectItem value="3">3</SelectItem>
-          <SelectItem value="4">4</SelectItem>
-          <SelectItem value="5">5 - Máximo</SelectItem>
-        </SelectContent>
-      </Select>
-    </div>
-
-    {/* 🔘 Botones */}
-    <div className="flex space-x-2 pt-2">
-      <Button
-        variant="outline"
-        className="flex-1"
-        onClick={() => {
-          setIsAddDialogOpen(false);
-          setNewUserPhoto(null);
-        }}
-      >
-        Cancelar
-      </Button>
-      <Button
-        className="flex-1"
-        onClick={() => {
-          setIsAddDialogOpen(false);
-          setNewUserPhoto(null);
-          // Aquí podrías hacer el POST al backend con axios
-        }}
-      >
-        Crear Usuario
-      </Button>
-    </div>
-  </div>
-</DialogContent>
-
+            <UserForm
+              user={newUser}
+              setUser={setNewUser}
+              photo={newUserPhoto}
+              setPhoto={setNewUserPhoto}
+              photoInputRef={newUserPhotoInputRef}
+              onSave={handleCreateUser}
+              onCancel={() => { setIsAddDialogOpen(false); setNewUserPhoto(null); }}
+              title="Agregar Nuevo Usuario"
+            />
+          </DialogContent>
         </Dialog>
       </div>
 
@@ -245,44 +188,39 @@ export function UserManagement() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredUsers.map((user) => (
-              <TableRow key={user.id}>
+            {filteredUsers.map(user => (
+              <TableRow key={user.idUsuarios}>
                 <TableCell>
                   <div className="flex items-center space-x-3">
                     <Avatar>
                       {user.photo ? (
-                        <AvatarImage src={user.photo} alt={user.name} />
+                        <AvatarImage src={user.photo} alt={`${user.nombre_usuario} ${user.apellido_usuario}`} />
                       ) : (
                         <AvatarFallback className="bg-blue-100 text-blue-600">
-                          {getInitials(user.name)}
+                          {getInitials(`${user.nombre_usuario} ${user.apellido_usuario}`)}
                         </AvatarFallback>
                       )}
                     </Avatar>
                     <div>
-                      <div className="font-medium">{user.name}</div>
-                      <div className="text-sm text-muted-foreground">{user.email}</div>
+                      <div className="font-medium">{`${user.nombre_usuario || "NA"} ${user.apellido_usuario || ""}`}</div>
+                      <div className="text-sm text-muted-foreground">{user.correo_usuario || "no-email@dominio.com"}</div>
                     </div>
                   </div>
                 </TableCell>
-                <TableCell>{user.department}</TableCell>
+                <TableCell>{user.cargo_usuario || "Sin zona"}</TableCell>
                 <TableCell>
-                  <code className="bg-gray-100 px-2 py-1 rounded text-sm">{user.cardId}</code>
+                  <code className="bg-gray-100 px-2 py-1 rounded text-sm">{user.targeta_usuario || "N/A"}</code>
                 </TableCell>
                 <TableCell>
-                  <Badge variant={getStatusColor(user.status)}>{user.status}</Badge>
+                  <Badge variant={getStatusColor(user.status || "Activo")}>{user.status || "Activo"}</Badge>
                 </TableCell>
-                <TableCell className="text-sm text-muted-foreground">{user.lastAccess}</TableCell>
+                <TableCell className="text-sm text-muted-foreground">{user.lastAccess || "-"}</TableCell>
                 <TableCell>
                   <div className="flex space-x-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      title="Editar usuario"
-                      onClick={() => handleEditClick(user)}
-                    >
+                    <Button variant="outline" size="sm" title="Editar usuario" onClick={() => handleEditClick(user)}>
                       <Edit className="w-4 h-4" />
                     </Button>
-                    <Button variant="outline" size="sm" title="Eliminar usuario">
+                    <Button variant="outline" size="sm" title="Eliminar usuario" onClick={() => handleDeleteUser(user.idUsuarios)}>
                       <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>
@@ -292,6 +230,128 @@ export function UserManagement() {
           </TableBody>
         </Table>
       </Card>
+
+      {/* Dialog editar usuario */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-md">
+          <UserForm
+            user={editingUser || {
+              nombre_usuario: "",
+              apellido_usuario: "",
+              correo_usuario: "",
+              telefono_usuario: "",
+              cargo_usuario: "",
+              nivel_acceso: "",
+              targeta_usuario: "",
+              photo: null
+            }}
+            setUser={setEditingUser}
+            photo={(editingUser && editingUser.photo) || null}
+            setPhoto={(photo) => editingUser && setEditingUser({ ...editingUser, photo })}
+            photoInputRef={editUserPhotoInputRef}
+            onSave={handleSaveEdit}
+            onCancel={() => { setIsEditDialogOpen(false); setEditingUser(null); }}
+            title="Editar Usuario"
+          />
+        </DialogContent>
+      </Dialog>
     </div>
+  );
+}
+
+// --- Componente reutilizable de formulario ---
+function UserForm({ user, setUser, photo, setPhoto, photoInputRef, onSave, onCancel, title }: any) {
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle>{title}</DialogTitle>
+      </DialogHeader>
+
+      <div className="space-y-4">
+        {/* Foto */}
+        <div className="flex flex-col items-center space-y-3">
+          <Avatar className="w-24 h-24">
+            {photo ? (
+              <AvatarImage src={photo} alt="Usuario" />
+            ) : (
+              <AvatarFallback className="bg-blue-100 text-blue-600">
+                <Camera className="w-8 h-8" />
+              </AvatarFallback>
+            )}
+          </Avatar>
+          <input
+            ref={photoInputRef}
+            type="file"
+            accept="image/*"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) {
+                const reader = new FileReader();
+                reader.onloadend = () => setPhoto(reader.result as string);
+                reader.readAsDataURL(file);
+              }
+            }}
+            className="hidden"
+          />
+          <Button variant="outline" size="sm" onClick={() => photoInputRef.current?.click()}>
+            <Camera className="w-4 h-4 mr-2" />
+            {photo ? "Cambiar" : "Agregar"} Foto
+          </Button>
+        </div>
+
+        {/* Campos */}
+        <div className="space-y-2">
+          <Label>Nombre</Label>
+          <Input value={user.nombre_usuario} onChange={(e) => setUser({ ...user, nombre_usuario: e.target.value })} />
+        </div>
+        <div className="space-y-2">
+          <Label>Apellido</Label>
+          <Input value={user.apellido_usuario} onChange={(e) => setUser({ ...user, apellido_usuario: e.target.value })} />
+        </div>
+        <div className="space-y-2">
+          <Label>Correo</Label>
+          <Input value={user.correo_usuario} onChange={(e) => setUser({ ...user, correo_usuario: e.target.value })} />
+        </div>
+        <div className="space-y-2">
+          <Label>Teléfono</Label>
+          <Input value={user.telefono_usuario} onChange={(e) => setUser({ ...user, telefono_usuario: e.target.value })} />
+        </div>
+        <div className="space-y-2">
+          <Label>Cargo</Label>
+          <Select value={user.cargo_usuario} onValueChange={(val) => setUser({ ...user, cargo_usuario: val })}>
+            <SelectTrigger>
+              <SelectValue placeholder="Seleccionar cargo" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Supervisor">Supervisor</SelectItem>
+              <SelectItem value="Seguridad">Seguridad</SelectItem>
+              <SelectItem value="Mantenimiento">Mantenimiento</SelectItem>
+              <SelectItem value="Administración">Administración</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label>Nivel de Acceso (1 a 5)</Label>
+          <Select value={user.nivel_acceso} onValueChange={(val) => setUser({ ...user, nivel_acceso: val })}>
+            <SelectTrigger>
+              <SelectValue placeholder="Seleccionar nivel" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="1">1 - Bajo</SelectItem>
+              <SelectItem value="2">2</SelectItem>
+              <SelectItem value="3">3</SelectItem>
+              <SelectItem value="4">4</SelectItem>
+              <SelectItem value="5">5 - Máximo</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Botones */}
+        <div className="flex space-x-2 pt-2">
+          <Button variant="outline" className="flex-1" onClick={onCancel}>Cancelar</Button>
+          <Button className="flex-1" onClick={onSave}>Guardar</Button>
+        </div>
+      </div>
+    </>
   );
 }

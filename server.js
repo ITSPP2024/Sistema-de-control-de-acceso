@@ -22,13 +22,14 @@ db.connect(err => {
   else console.log("✅ Conectado a MySQL");
 });
 
-// 🔹 Endpoint de login
+// ===========================
+// 🔹 LOGIN
+// ===========================
 app.post("/api/login", (req, res) => {
   const { email, password } = req.body;
 
-  if (!email || !password) {
+  if (!email || !password)
     return res.status(400).json({ error: "Faltan datos" });
-  }
 
   const query = `
     SELECT * FROM Administradores
@@ -37,10 +38,8 @@ app.post("/api/login", (req, res) => {
 
   db.query(query, [email, password], (err, results) => {
     if (err) return res.status(500).json({ error: err.message });
-
-    if (results.length === 0) {
+    if (results.length === 0)
       return res.status(401).json({ error: "Correo o contraseña incorrectos" });
-    }
 
     const admin = results[0];
     res.json({
@@ -54,10 +53,14 @@ app.post("/api/login", (req, res) => {
     });
   });
 });
+
+// ===========================
+// 🔹 CRUD de USUARIOS
+// ===========================
+
 // ✅ OBTENER USUARIOS
 app.get("/api/usuarios", (req, res) => {
-  const sql = "SELECT * FROM usuarios";
-  db.query(sql, (err, results) => {
+  db.query("SELECT * FROM usuarios", (err, results) => {
     if (err) {
       console.error("Error al obtener usuarios:", err);
       return res.status(500).json({ error: "Error al obtener usuarios" });
@@ -66,27 +69,19 @@ app.get("/api/usuarios", (req, res) => {
   });
 });
 
-// ✅ CREAR NUEVO USUARIO (actualizado con nivel_acceso y sin zona)
+// ✅ CREAR NUEVO USUARIO
 app.post("/api/usuarios", (req, res) => {
-    console.log("📩 Datos recibidos en /api/usuarios:", req.body);
-
   const {
     nombre_usuario,
     apellido_usuario,
     correo_usuario,
     cargo_usuario,
-    nivel_acceso,   // 👈 nuevo campo
+    nivel_acceso,
     targeta_usuario,
-    telefono_usuario,
+    telefono_usuario
   } = req.body;
 
-  if (
-    !nombre_usuario ||
-    !apellido_usuario ||
-    !correo_usuario ||
-    !cargo_usuario ||
-    !nivel_acceso
-  ) {
+  if (!nombre_usuario || !apellido_usuario || !correo_usuario || !cargo_usuario || !nivel_acceso) {
     return res.status(400).json({ error: "Faltan datos obligatorios" });
   }
 
@@ -96,43 +91,195 @@ app.post("/api/usuarios", (req, res) => {
     VALUES (?, ?, ?, ?, ?, ?, ?)
   `;
 
-    db.query(
+  db.query(
     sql,
-    [
-      nombre_usuario,
-      apellido_usuario,
-      correo_usuario,
-      cargo_usuario,
-      nivel_acceso,
-      targeta_usuario || null,
-      telefono_usuario || null,
-    ],
+    [nombre_usuario, apellido_usuario, correo_usuario, cargo_usuario, nivel_acceso, targeta_usuario || null, telefono_usuario || null],
     (err, result) => {
-      console.log("🧾 SQL ejecutado:", sql);
-      console.log("📦 Datos enviados:", [
-        nombre_usuario,
-        apellido_usuario,
-        correo_usuario,
-        cargo_usuario,
-        nivel_acceso,
-        targeta_usuario,
-        telefono_usuario,
-      ]);
-
       if (err) {
         console.error("❌ Error MySQL:", err.sqlMessage);
         return res.status(500).json({ error: err.sqlMessage });
       }
-
-      console.log("✅ Usuario insertado con ID:", result.insertId);
       res.json({ id: result.insertId, message: "✅ Usuario creado con éxito" });
     }
   );
 });
 
+// ✅ ACTUALIZAR USUARIO
+app.put("/api/usuarios/:id", (req, res) => {
+  const { id } = req.params;
+  const {
+    nombre_usuario,
+    apellido_usuario,
+    correo_usuario,
+    cargo_usuario,
+    nivel_acceso,
+    targeta_usuario,
+    telefono_usuario
+  } = req.body;
 
+  const sql = `
+    UPDATE usuarios SET
+      nombre_usuario = ?,
+      apellido_usuario = ?,
+      correo_usuario = ?,
+      cargo_usuario = ?,
+      nivel_acceso = ?,
+      targeta_usuario = ?,
+      telefono_usuario = ?
+    WHERE idUsuarios = ?
+  `;
+
+  db.query(
+    sql,
+    [nombre_usuario, apellido_usuario, correo_usuario, cargo_usuario, nivel_acceso, targeta_usuario || null, telefono_usuario || null, id],
+    (err, result) => {
+      if (err) {
+        console.error("❌ Error MySQL:", err.sqlMessage);
+        return res.status(500).json({ error: err.sqlMessage });
+      }
+      if (result.affectedRows === 0)
+        return res.status(404).json({ error: "Usuario no encontrado" });
+      res.json({ message: "Usuario actualizado con éxito" });
+    }
+  );
+});
+
+// ✅ ELIMINAR USUARIO
+app.delete("/api/usuarios/:id", (req, res) => {
+  const { id } = req.params;
+  db.query("DELETE FROM usuarios WHERE idUsuarios = ?", [id], (err, result) => {
+    if (err) {
+      console.error("❌ Error MySQL:", err.sqlMessage);
+      return res.status(500).json({ error: err.sqlMessage });
+    }
+    if (result.affectedRows === 0)
+      return res.status(404).json({ error: "Usuario no encontrado" });
+    res.json({ message: "Usuario eliminado con éxito" });
+  });
+});
+
+// ===========================
+// 🔹 CRUD de ZONAS
+// ===========================
+
+// ✅ OBTENER TODAS LAS ZONAS
+app.get("/api/zonas", (req, res) => {
+  db.query("SELECT * FROM zonas", (err, results) => {
+    if (err) {
+      console.error("❌ Error al obtener zonas:", err);
+      return res.status(500).json({ error: "Error al obtener zonas" });
+    }
+    res.json(results);
+  });
+});
+
+// ✅ CREAR NUEVA ZONA
+app.post("/api/zonas", (req, res) => {
+  const {
+    nombre_zona,
+    descripcion_zona,
+    nivel_seguridad_zona,
+    capacidad_maxima_zona,
+    horario_inicio_zona,
+    horario_fin_zona,
+    requiresEscort,
+    estado_zona
+  } = req.body;
+
+  if (!nombre_zona || !nivel_seguridad_zona) {
+    return res.status(400).json({ error: "Faltan datos obligatorios" });
+  }
+
+  const sql = `
+    INSERT INTO zonas (
+      nombre_zona,
+      descripcion_zona,
+      nivel_seguridad_zona,
+      capacidad_maxima_zona,
+      horario_inicio_zona,
+      horario_fin_zona,
+      requiresEscort,
+      estado_zona
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `;
+
+  db.query(sql, [
+    nombre_zona,
+    descripcion_zona || null,
+    nivel_seguridad_zona,
+    capacidad_maxima_zona || null,
+    horario_inicio_zona || null,
+    horario_fin_zona || null,
+    requiresEscort ? 1 : 0,
+    estado_zona || "Activa"
+  ], (err, result) => {
+    if (err) {
+      console.error("❌ Error MySQL:", err.sqlMessage);
+      return res.status(500).json({ error: err.sqlMessage });
+    }
+    res.json({ idzonas: result.insertId, message: "✅ Zona creada con éxito" });
+  });
+});
+
+// ✅ ACTUALIZAR ZONA
+app.put("/api/zonas/:id", (req, res) => {
+  const { id } = req.params;
+  const {
+    nombre_zona,
+    descripcion_zona,
+    nivel_seguridad_zona,
+    capacidad_maxima_zona,
+    horario_inicio_zona,
+    horario_fin_zona,
+    requiresEscort,
+    estado_zona
+  } = req.body;
+
+  const sql = `
+    UPDATE zonas SET
+      nombre_zona = ?,
+      descripcion_zona = ?,
+      nivel_seguridad_zona = ?,
+      capacidad_maxima_zona = ?,
+      horario_inicio_zona = ?,
+      horario_fin_zona = ?,
+      requiresEscort = ?,
+      estado_zona = ?
+    WHERE idzonas = ?
+  `;
+
+  db.query(sql, [
+    nombre_zona,
+    descripcion_zona,
+    nivel_seguridad_zona,
+    capacidad_maxima_zona,
+    horario_inicio_zona,
+    horario_fin_zona,
+    requiresEscort ? 1 : 0,
+    estado_zona,
+    id
+  ], (err) => {
+    if (err) {
+      console.error("❌ Error al actualizar zona:", err);
+      return res.status(500).json({ error: "Error al actualizar zona" });
+    }
+    res.json({ message: "✅ Zona actualizada correctamente" });
+  });
+});
+
+// ✅ ELIMINAR ZONA
+app.delete("/api/zonas/:id", (req, res) => {
+  const { id } = req.params;
+  db.query("DELETE FROM zonas WHERE idzonas = ?", [id], (err) => {
+    if (err) {
+      console.error("❌ Error al eliminar zona:", err);
+      return res.status(500).json({ error: "Error al eliminar zona" });
+    }
+    res.json({ message: "🗑️ Zona eliminada correctamente" });
+  });
+});
 
 // 🚀 Iniciar servidor
-app.listen(process.env.PORT, () => {
-  console.log(`Servidor corriendo en http://localhost:${process.env.PORT}`);
+app.listen(process.env.PORT || 5001, () => {
+  console.log(`Servidor corriendo en http://localhost:${process.env.PORT || 5001}`);
 });
