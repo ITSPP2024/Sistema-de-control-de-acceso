@@ -279,6 +279,63 @@ app.delete("/api/zonas/:id", (req, res) => {
   });
 });
 
+// ✅ Actualizar posición de una zona
+app.put("/api/zonas/:id/posicion", (req, res) => {
+  const { id } = req.params;
+  const { pos_x, pos_y } = req.body;
+
+  const sql = `UPDATE zonas SET pos_x = ?, pos_y = ? WHERE idzonas = ?`;
+
+  db.query(sql, [pos_x, pos_y, id], (err, result) => {
+    if (err) {
+      console.error("❌ Error al actualizar posición:", err);
+      return res.status(500).json({ error: "Error al actualizar posición" });
+    }
+    res.json({ message: "✅ Posición actualizada correctamente" });
+  });
+});
+
+// ✅ Obtener todas las conexiones
+app.get("/api/conexiones", (req, res) => {
+  db.query("SELECT * FROM conexiones", (err, results) => {
+    if (err) {
+      console.error("❌ Error al obtener conexiones:", err);
+      return res.status(500).json({ error: "Error al obtener conexiones" });
+    }
+    res.json(results);
+  });
+});
+
+// ✅ Crear una nueva conexión entre zonas
+app.post("/api/conexiones", (req, res) => {
+  const { id_zona_origen, id_zona_destino } = req.body;
+  if (!id_zona_origen || !id_zona_destino) {
+    return res.status(400).json({ error: "Faltan datos" });
+  }
+
+  const sql = `INSERT INTO conexiones (id_zona_origen, id_zona_destino) VALUES (?, ?)`;
+
+  db.query(sql, [id_zona_origen, id_zona_destino], (err, result) => {
+    if (err) {
+      console.error("❌ Error MySQL:", err);
+      return res.status(500).json({ error: err.sqlMessage });
+    }
+    res.json({ id: result.insertId, message: "✅ Conexión creada" });
+  });
+});
+
+// ✅ Eliminar conexión
+app.delete("/api/conexiones/:id", (req, res) => {
+  const { id } = req.params;
+  db.query("DELETE FROM conexiones WHERE id = ?", [id], (err) => {
+    if (err) {
+      console.error("❌ Error al eliminar conexión:", err);
+      return res.status(500).json({ error: "Error al eliminar conexión" });
+    }
+    res.json({ message: "🗑️ Conexión eliminada" });
+  });
+});
+
 // 🚀 Iniciar servidor
 app.listen(process.env.PORT || 5001, () => {
   console.log(`Servidor corriendo en http://localhost:${process.env.PORT || 5001}`);

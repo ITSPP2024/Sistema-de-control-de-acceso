@@ -57,31 +57,43 @@ export function ZoneConfig() {
   // 🔹 Cargar datos desde backend
   // =============================
   useEffect(() => {
-      fetch("http://localhost:5001/api/zonas")
-      .then(res => res.json())
-      .then(data => {
-        // Transformamos para adaptarlo al tipo Zone
-        const loadedZones: Zone[] = data.map((z: any) => ({
-          id: z.idzonas,
-          name: z.nombre_zona,
-          position: { x: z.pos_x || 100, y: z.pos_y || 100 },
-          description: z.descripcion_zona || "",
-          accessLevel: z.nivel_seguridad_zona,
-          isActive: z.estado_zona === "Activa",
-          allowedUsers: 0, // Podrías agregar desde API si existe
-          totalUsers: 0,
-          schedule: `${z.horario_inicio_zona || "--:--"} - ${z.horario_fin_zona || "--:--"}`,
-          requiresEscort: false,
-          maxOccupancy: z.capacidad_maxima_zona || 10,
-          currentOccupancy: 0,
-          position: { x: 100, y: 100 }, // Por defecto, luego puedes guardar coords
-          size: { width: 240, height: 180 },
-          color: "#3b82f6"
-        }));
-        setZones(loadedZones);
-      })
-      .catch(err => console.error("Error cargando zonas:", err));
-  }, []);
+  // Cargar zonas
+  fetch("http://localhost:5001/api/zonas")
+    .then(res => res.json())
+    .then(data => {
+      const loadedZones: Zone[] = data.map((z: any) => ({
+        id: z.idzonas,
+        name: z.nombre_zona,
+        position: { x: z.pos_x || 100, y: z.pos_y || 100 },
+        description: z.descripcion_zona || "",
+        accessLevel: z.nivel_seguridad_zona,
+        isActive: z.estado_zona === "Activa",
+        allowedUsers: 0,
+        totalUsers: 0,
+        schedule: `${z.horario_inicio_zona || "--:--"} - ${z.horario_fin_zona || "--:--"}`,
+        requiresEscort: z.requiresEscort === 1,
+        maxOccupancy: z.capacidad_maxima_zona || 10,
+        currentOccupancy: 0,
+        size: { width: 240, height: 180 },
+        color: "#3b82f6"
+      }));
+      setZones(loadedZones);
+    });
+
+  // Cargar conexiones
+  fetch("http://localhost:5001/api/conexiones")
+    .then(res => res.json())
+    .then(data => {
+      const loadedConnections: Connection[] = data.map((c: any) => ({
+        from: c.id_zona_origen,
+        to: c.id_zona_destino,
+        label: "Conexión",
+        id: c.id
+      }));
+      setConnections(loadedConnections);
+    });
+}, []);
+
 
   // =============================
   // 🔹 Funciones auxiliares
@@ -151,32 +163,77 @@ export function ZoneConfig() {
     ));
   };
 
-  const handleMouseUp = () => {
-    setDraggingZone(null);
-  };
-
-  const handleZoneClick = (zoneId: number, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (connectingMode) {
-      if (connectingFrom === null) {
-        setConnectingFrom(zoneId);
-      } else if (connectingFrom !== zoneId) {
-        const existing = connections.find(c =>
-          (c.from === connectingFrom && c.to === zoneId) ||
-          (c.from === zoneId && c.to === connectingFrom)
-        );
-        if (!existing) setConnections([...connections, { from: connectingFrom, to: zoneId, label: "Conexión" }]);
-        setConnectingFrom(null);
-        setConnectingMode(false);
+  const handleMouseUp = async () => {
+  if (draggingZone !== null) {
+    const movedZone = zones.find(z => z.id === draggingZone);
+    if (movedZone) {
+      try {
+        await fetch(`http://localhost:5001/api/zonas/${movedZone.id}/posicion`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            pos_x: movedZone.position.x,
+            pos_y: movedZone.position.y
+          })
+        });
+      } catch (err) {
+        console.error("Error guardando posición:", err);
       }
-    } else {
-      setSelectedZone(zoneId);
     }
-  };
+  }
+  setDraggingZone(null);
+};
 
-  const removeConnection = (from: number, to: number) => {
-    setConnections(connections.filter(c => !((c.from === from && c.to === to) || (c.from === to && c.to === from))));
-  };
+const handleZoneClick = async (zoneId: number, e: React.MouseEvent) => {
+  e.stopPropagation();
+  if (connectingMode) {
+    if (connectingFrom === null) {
+      setConnectingFrom(zoneId);
+    } else if (connectingFrom !== zoneId) {
+      const existing = connections.find(c =>
+        (c.from === connectingFrom && c.to === zoneId) ||
+        (c.from === zoneId && c.to === connectingFrom)
+      );
+      if (!existing) {
+        const newConnection = { from: connectingFrom, to: zoneId, label: "Conexión" };
+        setConnections([...connections, newConnection]);
+
+        // Guardar en backend
+        try {
+          await fetch("http://localhost:5001/api/conexiones", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              id_zona_origen: connectingFrom,
+              id_zona_destino: zoneId
+            })
+          });
+        } catch (err) {
+          console.error("Error guardando conexión:", err);
+        }
+      }
+      setConnectingFrom(null); // Resetear después de crear la conexión
+    }
+  } else {
+    setSelectedZone(zoneId);
+  }
+};
+
+const removeConnection = async (from: number, to: number) => {
+  const connToDelete = connections.find(c => (c.from === from && c.to === to) || (c.from === to && c.to === from));
+  if (!connToDelete) return;
+
+  setConnections(connections.filter(c => c !== connToDelete));
+
+  try {
+    await fetch(`http://localhost:5001/api/conexiones/${connToDelete.id}`, {
+      method: "DELETE"
+    });
+  } catch (err) {
+    console.error("Error eliminando conexión:", err);
+  }
+};
+
 
   const getZoneCenter = (zone: Zone) => ({
     x: zone.position.x + zone.size.width / 2,
