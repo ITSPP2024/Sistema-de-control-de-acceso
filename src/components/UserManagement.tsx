@@ -1,4 +1,5 @@
-import { useState, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
+import axios from "axios";
 import { Card } from "./ui/card";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -10,73 +11,35 @@ import { Label } from "./ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Plus, Edit, Trash2, CreditCard, Camera } from "lucide-react";
 
-const mockUsers = [
-  {
-    id: 1,
-    name: "María González",
-    email: "maria@agencia.com",
-    role: "Administrador",
-    department: "Administración",
-    accessLevel: "Alto",
-    cardId: "RFID001",
-    status: "Activo",
-    lastAccess: "2025-01-06 09:15",
-    photo: null as string | null
-  },
-  {
-    id: 2,
-    name: "Carlos López",
-    email: "carlos@agencia.com",
-    role: "Mecánico",
-    department: "Taller",
-    accessLevel: "Medio",
-    cardId: "RFID002",
-    status: "Activo",
-    lastAccess: "2025-01-06 09:12",
-    photo: null as string | null
-  },
-  {
-    id: 3,
-    name: "Ana Rodríguez",
-    email: "ana@agencia.com",
-    role: "Vendedor",
-    department: "Ventas",
-    accessLevel: "Bajo",
-    cardId: "RFID003",
-    status: "Activo",
-    lastAccess: "2025-01-06 09:05",
-    photo: null as string | null
-  },
-  {
-    id: 4,
-    name: "Juan Pérez",
-    email: "juan@agencia.com",
-    role: "Supervisor",
-    department: "Taller",
-    accessLevel: "Alto",
-    cardId: "RFID004",
-    status: "Inactivo",
-    lastAccess: "2025-01-05 18:30",
-    photo: null as string | null
-  }
-];
-
 export function UserManagement() {
-  const [users, setUsers] = useState(mockUsers);
+  const [users, setUsers] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [editingUser, setEditingUser] = useState<typeof mockUsers[0] | null>(null);
+  const [editingUser, setEditingUser] = useState<any | null>(null);
   const [newUserPhoto, setNewUserPhoto] = useState<string | null>(null);
   const newUserPhotoInputRef = useRef<HTMLInputElement>(null);
   const editUserPhotoInputRef = useRef<HTMLInputElement>(null);
 
+  // ✅ Cargar usuarios desde el backend
+  useEffect(() => {
+    axios.get("http://localhost:3001/api/usuarios")
+      .then((res) => {
+        setUsers(res.data);
+      })
+      .catch((err) => {
+        console.error("Error al cargar usuarios:", err);
+      });
+  }, []);
+
+  // 🔍 Filtro de búsqueda
   const filteredUsers = users.filter(user =>
-    user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.department.toLowerCase().includes(searchTerm.toLowerCase())
+    user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    user.department?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // 🎨 Funciones auxiliares
   const getAccessLevelColor = (level: string) => {
     switch (level) {
       case "Alto": return "destructive";
@@ -90,47 +53,38 @@ export function UserManagement() {
     return status === "Activo" ? "default" : "secondary";
   };
 
-  const getInitials = (name: string) => {
-    return name
-      .split(" ")
-      .map(n => n[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2);
-  };
+  const getInitials = (name: string) =>
+    name?.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2) || "";
 
-  const handleNewUserPhotoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+  // 📸 Subir foto
+  const handleNewUserPhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setNewUserPhoto(reader.result as string);
-      };
+      reader.onloadend = () => setNewUserPhoto(reader.result as string);
       reader.readAsDataURL(file);
     }
   };
 
-  const handleEditUserPhotoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+  const handleEditUserPhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
     if (file && editingUser) {
       const reader = new FileReader();
-      reader.onloadend = () => {
+      reader.onloadend = () =>
         setEditingUser({ ...editingUser, photo: reader.result as string });
-      };
       reader.readAsDataURL(file);
     }
   };
 
-  const handleEditClick = (user: typeof mockUsers[0]) => {
+  const handleEditClick = (user: any) => {
     setEditingUser({ ...user });
     setIsEditDialogOpen(true);
   };
 
   const handleSaveEdit = () => {
     if (editingUser) {
-      setUsers(users.map(user => 
-        user.id === editingUser.id ? editingUser : user
-      ));
+      // Aquí puedes hacer un PUT al backend
+      setUsers(users.map(u => (u.id === editingUser.id ? editingUser : u)));
       setIsEditDialogOpen(false);
       setEditingUser(null);
     }
@@ -141,12 +95,9 @@ export function UserManagement() {
       <div className="flex items-center justify-between">
         <div>
           <h2>Gestión de Usuarios</h2>
-          <p className="text-muted-foreground">
-            Administrar usuarios y permisos de acceso
-          </p>
+          <p className="text-muted-foreground">Administrar usuarios y permisos de acceso</p>
         </div>
-        
-        {/* Dialog para Agregar Usuario */}
+
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
             <Button>
@@ -155,225 +106,123 @@ export function UserManagement() {
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>Agregar Nuevo Usuario</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              {/* Foto de perfil */}
-              <div className="flex flex-col items-center space-y-3">
-                <Avatar className="w-24 h-24">
-                  {newUserPhoto ? (
-                    <AvatarImage src={newUserPhoto} alt="Nuevo usuario" />
-                  ) : (
-                    <AvatarFallback className="bg-blue-100 text-blue-600">
-                      <Camera className="w-8 h-8" />
-                    </AvatarFallback>
-                  )}
-                </Avatar>
-                <input
-                  ref={newUserPhotoInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleNewUserPhotoUpload}
-                  className="hidden"
-                />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => newUserPhotoInputRef.current?.click()}
-                >
-                  <Camera className="w-4 h-4 mr-2" />
-                  {newUserPhoto ? "Cambiar" : "Agregar"} Foto
-                </Button>
-              </div>
+  <DialogHeader>
+    <DialogTitle>Agregar Nuevo Usuario</DialogTitle>
+  </DialogHeader>
 
-              <div className="space-y-2">
-                <Label htmlFor="name">Nombre Completo</Label>
-                <Input id="name" placeholder="Ingrese el nombre completo" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" placeholder="email@agencia.com" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="department">Departamento</Label>
-                <Select>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar departamento" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="taller">Taller</SelectItem>
-                    <SelectItem value="ventas">Ventas</SelectItem>
-                    <SelectItem value="administracion">Administración</SelectItem>
-                    <SelectItem value="recepcion">Recepción</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="accessLevel">Nivel de Acceso</Label>
-                <Select>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar nivel" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="bajo">Bajo</SelectItem>
-                    <SelectItem value="medio">Medio</SelectItem>
-                    <SelectItem value="alto">Alto</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Button variant="outline" className="w-full">
-                  <CreditCard className="w-4 h-4 mr-2" />
-                  Asignar Tarjeta RFID
-                </Button>
-              </div>
-              <div className="flex space-x-2 pt-2">
-                <Button 
-                  variant="outline" 
-                  className="flex-1" 
-                  onClick={() => {
-                    setIsAddDialogOpen(false);
-                    setNewUserPhoto(null);
-                  }}
-                >
-                  Cancelar
-                </Button>
-                <Button 
-                  className="flex-1" 
-                  onClick={() => {
-                    setIsAddDialogOpen(false);
-                    setNewUserPhoto(null);
-                  }}
-                >
-                  Crear Usuario
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
+  <div className="space-y-4">
+    {/* 📸 Foto de perfil */}
+    <div className="flex flex-col items-center space-y-3">
+      <Avatar className="w-24 h-24">
+        {newUserPhoto ? (
+          <AvatarImage src={newUserPhoto} alt="Nuevo usuario" />
+        ) : (
+          <AvatarFallback className="bg-blue-100 text-blue-600">
+            <Camera className="w-8 h-8" />
+          </AvatarFallback>
+        )}
+      </Avatar>
+      <input
+        ref={newUserPhotoInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleNewUserPhotoUpload}
+        className="hidden"
+      />
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => newUserPhotoInputRef.current?.click()}
+      >
+        <Camera className="w-4 h-4 mr-2" />
+        {newUserPhoto ? "Cambiar" : "Agregar"} Foto
+      </Button>
+    </div>
+
+    {/* 🧾 Campos de información */}
+    <div className="space-y-2">
+      <Label htmlFor="name">Nombre</Label>
+      <Input id="name" placeholder="Ingrese el nombre" />
+    </div>
+
+    <div className="space-y-2">
+      <Label htmlFor="apellido">Apellido</Label>
+      <Input id="apellido" placeholder="Ingrese el apellido" />
+    </div>
+
+    <div className="space-y-2">
+      <Label htmlFor="correo">Correo</Label>
+      <Input id="correo" placeholder="correo@empresa.com" />
+    </div>
+
+    <div className="space-y-2">
+      <Label htmlFor="telefono">Teléfono</Label>
+      <Input id="telefono" placeholder="123-123-1212" />
+    </div>
+
+    {/* 💼 Cargo */}
+    <div className="space-y-2">
+      <Label htmlFor="cargo">Cargo</Label>
+      <Select>
+        <SelectTrigger>
+          <SelectValue placeholder="Seleccionar cargo" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="Supervisor">Supervisor</SelectItem>
+          <SelectItem value="Seguridad">Seguridad</SelectItem>
+          <SelectItem value="Mantenimiento">Mantenimiento</SelectItem>
+          <SelectItem value="Administración">Administración</SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
+
+    {/* 🔐 Nivel de acceso */}
+    <div className="space-y-2">
+      <Label htmlFor="nivelAcceso">Nivel de Acceso (1 a 5)</Label>
+      <Select>
+        <SelectTrigger>
+          <SelectValue placeholder="Seleccionar nivel" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="1">1 - Bajo</SelectItem>
+          <SelectItem value="2">2</SelectItem>
+          <SelectItem value="3">3</SelectItem>
+          <SelectItem value="4">4</SelectItem>
+          <SelectItem value="5">5 - Máximo</SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
+
+    {/* 🔘 Botones */}
+    <div className="flex space-x-2 pt-2">
+      <Button
+        variant="outline"
+        className="flex-1"
+        onClick={() => {
+          setIsAddDialogOpen(false);
+          setNewUserPhoto(null);
+        }}
+      >
+        Cancelar
+      </Button>
+      <Button
+        className="flex-1"
+        onClick={() => {
+          setIsAddDialogOpen(false);
+          setNewUserPhoto(null);
+          // Aquí podrías hacer el POST al backend con axios
+        }}
+      >
+        Crear Usuario
+      </Button>
+    </div>
+  </div>
+</DialogContent>
+
         </Dialog>
       </div>
 
-      {/* Dialog para Editar Usuario */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Editar Usuario</DialogTitle>
-          </DialogHeader>
-          {editingUser && (
-            <div className="space-y-4">
-              {/* Foto de perfil */}
-              <div className="flex flex-col items-center space-y-3">
-                <Avatar className="w-24 h-24">
-                  {editingUser.photo ? (
-                    <AvatarImage src={editingUser.photo} alt={editingUser.name} />
-                  ) : (
-                    <AvatarFallback className="bg-blue-100 text-blue-600">
-                      {getInitials(editingUser.name)}
-                    </AvatarFallback>
-                  )}
-                </Avatar>
-                <input
-                  ref={editUserPhotoInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleEditUserPhotoUpload}
-                  className="hidden"
-                />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => editUserPhotoInputRef.current?.click()}
-                >
-                  <Camera className="w-4 h-4 mr-2" />
-                  {editingUser.photo ? "Cambiar" : "Agregar"} Foto
-                </Button>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="edit-name">Nombre Completo</Label>
-                <Input 
-                  id="edit-name" 
-                  value={editingUser.name}
-                  onChange={(e) => setEditingUser({ ...editingUser, name: e.target.value })}
-                  placeholder="Ingrese el nombre completo" 
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-email">Email</Label>
-                <Input 
-                  id="edit-email" 
-                  type="email" 
-                  value={editingUser.email}
-                  onChange={(e) => setEditingUser({ ...editingUser, email: e.target.value })}
-                  placeholder="email@agencia.com" 
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-department">Departamento</Label>
-                <Select 
-                  value={editingUser.department.toLowerCase()}
-                  onValueChange={(value) => setEditingUser({ ...editingUser, department: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="taller">Taller</SelectItem>
-                    <SelectItem value="ventas">Ventas</SelectItem>
-                    <SelectItem value="administración">Administración</SelectItem>
-                    <SelectItem value="recepcion">Recepción</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-accessLevel">Nivel de Acceso</Label>
-                <Select 
-                  value={editingUser.accessLevel.toLowerCase()}
-                  onValueChange={(value) => setEditingUser({ ...editingUser, accessLevel: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="bajo">Bajo</SelectItem>
-                    <SelectItem value="medio">Medio</SelectItem>
-                    <SelectItem value="alto">Alto</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-cardId">Tarjeta RFID</Label>
-                <Input 
-                  id="edit-cardId" 
-                  value={editingUser.cardId}
-                  onChange={(e) => setEditingUser({ ...editingUser, cardId: e.target.value })}
-                  placeholder="RFID001" 
-                />
-              </div>
-              <div className="flex space-x-2 pt-2">
-                <Button 
-                  variant="outline" 
-                  className="flex-1" 
-                  onClick={() => {
-                    setIsEditDialogOpen(false);
-                    setEditingUser(null);
-                  }}
-                >
-                  Cancelar
-                </Button>
-                <Button 
-                  className="flex-1" 
-                  onClick={handleSaveEdit}
-                >
-                  Guardar Cambios
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
+      {/* Tabla de usuarios */}
       <Card className="p-6">
         <div className="mb-4">
           <Input
@@ -388,8 +237,7 @@ export function UserManagement() {
           <TableHeader>
             <TableRow>
               <TableHead>Usuario</TableHead>
-              <TableHead>Departamento</TableHead>
-              <TableHead>Nivel de Acceso</TableHead>
+              <TableHead>Zona</TableHead>
               <TableHead>Tarjeta RFID</TableHead>
               <TableHead>Estado</TableHead>
               <TableHead>Último Acceso</TableHead>
@@ -418,28 +266,17 @@ export function UserManagement() {
                 </TableCell>
                 <TableCell>{user.department}</TableCell>
                 <TableCell>
-                  <Badge variant={getAccessLevelColor(user.accessLevel)}>
-                    {user.accessLevel}
-                  </Badge>
+                  <code className="bg-gray-100 px-2 py-1 rounded text-sm">{user.cardId}</code>
                 </TableCell>
                 <TableCell>
-                  <code className="bg-gray-100 px-2 py-1 rounded text-sm">
-                    {user.cardId}
-                  </code>
+                  <Badge variant={getStatusColor(user.status)}>{user.status}</Badge>
                 </TableCell>
-                <TableCell>
-                  <Badge variant={getStatusColor(user.status)}>
-                    {user.status}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-sm text-muted-foreground">
-                  {user.lastAccess}
-                </TableCell>
+                <TableCell className="text-sm text-muted-foreground">{user.lastAccess}</TableCell>
                 <TableCell>
                   <div className="flex space-x-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
+                    <Button
+                      variant="outline"
+                      size="sm"
                       title="Editar usuario"
                       onClick={() => handleEditClick(user)}
                     >
