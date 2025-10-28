@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Card } from "./ui/card";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -6,33 +6,58 @@ import { Label } from "./ui/label";
 import { Textarea } from "./ui/textarea";
 import { Building2, Upload, Save } from "lucide-react";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
+import axios from "axios";
 
 export function CompanyProfile() {
   const [companyData, setCompanyData] = useState({
-    name: "SecureAccess Pro",
-    description: "Sistema de Control de Acceso - Agencia",
-    address: "Av. Principal 123, Ciudad",
-    phone: "+1 (555) 123-4567",
-    email: "info@secureaccess.com",
-    logo: null as string | null
+    name: "",
+    description: "",
+    address: "",
+    phone: "",
+    email: "",
+    logo: "",
+    primary_color: "#2563eb",
+    secondary_color: "#64748b",
+    accent_color: "#0ea5e9"
   });
 
   const logoInputRef = useRef<HTMLInputElement>(null);
 
+  // Cargar datos de la base de datos al montar el componente
+  useEffect(() => {
+    axios.get("http://localhost:5001/api/empresa")
+      .then(res => {
+        if (res.data) {
+          setCompanyData({
+            name: res.data.nombre_empresa || "",
+            description: res.data.description_empresa || "",
+            address: res.data.direccion_empresa || "",
+            phone: res.data.telefono_empresa || "",
+            email: res.data.correo_empresa || "",
+            logo: res.data.logo || "",
+            primary_color: res.data.primary_color || "#2563eb",
+            secondary_color: res.data.secondary_color || "#64748b",
+            accent_color: res.data.accent_color || "#0ea5e9"
+          });
+        }
+      })
+      .catch(err => console.error("Error al cargar la empresa:", err));
+  }, []);
+
+  // Guardar cambios en la base de datos
+  const handleSave = () => {
+    axios.put("http://localhost:5001/api/empresa/1", companyData)
+      .then(() => alert("Configuración de la empresa guardada exitosamente"))
+      .catch(err => console.error("Error al guardar empresa:", err));
+  };
+
+  // Subir logo (solo guarda la ruta, no Base64)
   const handleLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setCompanyData({ ...companyData, logo: reader.result as string });
-      };
-      reader.readAsDataURL(file);
+      setCompanyData({ ...companyData, logo: `/uploads/${file.name}` });
+      // Luego tu backend debe mover el archivo a /uploads/
     }
-  };
-
-  const handleSave = () => {
-    // Aquí se guardaría en la base de datos
-    alert("Configuración de la empresa guardada exitosamente");
   };
 
   return (
@@ -184,10 +209,11 @@ export function CompanyProfile() {
               <div className="flex space-x-2">
                 <input
                   type="color"
-                  defaultValue="#2563eb"
+                  value={companyData.primary_color}
+                  onChange={(e) => setCompanyData({ ...companyData, primary_color: e.target.value })}
                   className="w-12 h-10 rounded border cursor-pointer"
                 />
-                <Input value="#2563eb" readOnly className="flex-1" />
+                <Input value={companyData.primary_color} readOnly className="flex-1" />
               </div>
             </div>
 
@@ -196,10 +222,11 @@ export function CompanyProfile() {
               <div className="flex space-x-2">
                 <input
                   type="color"
-                  defaultValue="#64748b"
+                  value={companyData.secondary_color}
+                  onChange={(e) => setCompanyData({ ...companyData, secondary_color: e.target.value })}
                   className="w-12 h-10 rounded border cursor-pointer"
                 />
-                <Input value="#64748b" readOnly className="flex-1" />
+                <Input value={companyData.secondary_color} readOnly className="flex-1" />
               </div>
             </div>
 
@@ -208,10 +235,11 @@ export function CompanyProfile() {
               <div className="flex space-x-2">
                 <input
                   type="color"
-                  defaultValue="#0ea5e9"
+                  value={companyData.accent_color}
+                  onChange={(e) => setCompanyData({ ...companyData, accent_color: e.target.value })}
                   className="w-12 h-10 rounded border cursor-pointer"
                 />
-                <Input value="#0ea5e9" readOnly className="flex-1" />
+                <Input value={companyData.accent_color} readOnly className="flex-1" />
               </div>
             </div>
           </div>

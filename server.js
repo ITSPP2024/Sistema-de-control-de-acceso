@@ -336,6 +336,368 @@ app.delete("/api/conexiones/:id", (req, res) => {
   });
 });
 
+// ===========================
+// 🔹 CRUD DE EMPRESA (PERFIL)
+// ===========================
+
+// Obtener datos de la empresa (asumiendo solo un registro con id = 1)
+app.get("/api/empresa", (req, res) => {
+  const sql = "SELECT * FROM empresa WHERE id = 1";
+  db.query(sql, (err, results) => {
+    if (err) {
+      console.error("❌ Error al obtener empresa:", err);
+      return res.status(500).json({ error: "Error al obtener empresa" });
+    }
+    if (results.length === 0) return res.status(404).json({ error: "Empresa no encontrada" });
+    res.json(results[0]);
+  });
+});
+
+// Actualizar datos de la empresa
+app.put("/api/empresa/:id", (req, res) => {
+  const { id } = req.params;
+  const {
+    name,
+    description,
+    address,
+    phone,
+    email,
+    logo,
+    primary_color,
+    secondary_color,
+    accent_color
+  } = req.body;
+
+  const sql = `
+    UPDATE empresa SET
+      nombre_empresa = ?,
+      description_empresa = ?,
+      direccion_empresa = ?,
+      telefono_empresa = ?,
+      correo_empresa = ?,
+      logo = ?,
+      primary_color = ?,
+      secondary_color = ?,
+      accent_color = ?
+    WHERE id = ?
+  `;
+
+  db.query(sql, [
+    name,
+    description,
+    address,
+    phone,
+    email,
+    logo,
+    primary_color,
+    secondary_color,
+    accent_color,
+    id
+  ], (err, result) => {
+    if (err) {
+      console.error("❌ Error al actualizar empresa:", err);
+      return res.status(500).json({ error: "Error al actualizar empresa" });
+    }
+    if (result.affectedRows === 0) return res.status(404).json({ error: "Empresa no encontrada" });
+    res.json({ message: "✅ Empresa actualizada correctamente" });
+  });
+});
+
+// ===========================
+// 🔹 CRUD de ACCESOS (Registro de Entradas y Salidas)
+// ===========================
+
+// ✅ OBTENER TODOS LOS ACCESOS
+app.get("/api/accesos", (req, res) => {
+  const sql = `
+    SELECT 
+      a.idacceso,
+      a.tipo_acceso,
+      a.tipo_dispositivo_acceso,
+      a.idDispositivo,
+      a.estado_acceso,
+      a.motivo_rechazo_acceso,
+      a.fecha_inicio_acceso,
+      a.fecha_fin_acceso,
+      a.duracion_acceso,
+      a.tarjeta_id,
+      u.idUsuarios AS idUsuario,
+      CONCAT(u.nombre_usuario, ' ', u.apellido_usuario) AS nombre_usuario,
+      z.idzonas AS idZona,
+      z.nombre_zona
+    FROM acceso a
+    LEFT JOIN usuarios u ON a.idUsuario = u.idUsuarios
+    LEFT JOIN zonas z ON a.idZona = z.idzonas
+    ORDER BY a.fecha_inicio_acceso DESC
+  `;
+
+  db.query(sql, (err, results) => {
+    if (err) {
+      console.error("❌ Error al obtener accesos:", err);
+      return res.status(500).json({ error: "Error al obtener accesos" });
+    }
+    res.json(results);
+  });
+});
+
+// ✅ CREAR NUEVO REGISTRO DE ACCESO
+app.post("/api/accesos", (req, res) => {
+  const {
+    idUsuario,
+    idZona,
+    tipo_acceso,
+    tipo_dispositivo_acceso,
+    idDispositivo,
+    estado_acceso,
+    motivo_rechazo_acceso,
+    fecha_inicio_acceso,
+    fecha_fin_acceso,
+    tarjeta_id
+  } = req.body;
+
+  const sql = `
+    INSERT INTO acceso (
+      idUsuario,
+      idZona,
+      tipo_acceso,
+      tipo_dispositivo_acceso,
+      idDispositivo,
+      estado_acceso,
+      motivo_rechazo_acceso,
+      fecha_inicio_acceso,
+      fecha_fin_acceso,
+      tarjeta_id
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `;
+
+  db.query(sql, [
+    idUsuario || null,
+    idZona || null,
+    tipo_acceso || "RFID",
+    tipo_dispositivo_acceso || null,
+    idDispositivo || null,
+    estado_acceso || "Autorizado",
+    motivo_rechazo_acceso || null,
+    fecha_inicio_acceso || new Date(),
+    fecha_fin_acceso || null,
+    tarjeta_id || null
+  ], (err, result) => {
+    if (err) {
+      console.error("❌ Error al crear acceso:", err);
+      return res.status(500).json({ error: err.sqlMessage });
+    }
+    res.json({ id: result.insertId, message: "✅ Acceso registrado correctamente" });
+  });
+});
+
+// ✅ ACTUALIZAR REGISTRO DE ACCESO
+app.put("/api/accesos/:id", (req, res) => {
+  const { id } = req.params;
+  const {
+    idUsuario,
+    idZona,
+    tipo_acceso,
+    tipo_dispositivo_acceso,
+    idDispositivo,
+    estado_acceso,
+    motivo_rechazo_acceso,
+    fecha_inicio_acceso,
+    fecha_fin_acceso,
+    tarjeta_id
+  } = req.body;
+
+  const sql = `
+    UPDATE acceso SET
+      idUsuario = ?,
+      idZona = ?,
+      tipo_acceso = ?,
+      tipo_dispositivo_acceso = ?,
+      idDispositivo = ?,
+      estado_acceso = ?,
+      motivo_rechazo_acceso = ?,
+      fecha_inicio_acceso = ?,
+      fecha_fin_acceso = ?,
+      tarjeta_id = ?
+    WHERE idacceso = ?
+  `;
+
+  db.query(sql, [
+    idUsuario || null,
+    idZona || null,
+    tipo_acceso,
+    tipo_dispositivo_acceso,
+    idDispositivo,
+    estado_acceso,
+    motivo_rechazo_acceso,
+    fecha_inicio_acceso,
+    fecha_fin_acceso,
+    tarjeta_id,
+    id
+  ], (err, result) => {
+    if (err) {
+      console.error("❌ Error al actualizar acceso:", err);
+      return res.status(500).json({ error: err.sqlMessage });
+    }
+    res.json({ message: "✅ Acceso actualizado correctamente" });
+  });
+});
+
+// ✅ ELIMINAR REGISTRO DE ACCESO
+app.delete("/api/accesos/:id", (req, res) => {
+  const { id } = req.params;
+  db.query("DELETE FROM acceso WHERE idacceso = ?", [id], (err, result) => {
+    if (err) {
+      console.error("❌ Error al eliminar acceso:", err);
+      return res.status(500).json({ error: "Error al eliminar acceso" });
+    }
+    if (result.affectedRows === 0)
+      return res.status(404).json({ error: "Registro de acceso no encontrado" });
+
+    res.json({ message: "🗑️ Acceso eliminado correctamente" });
+  });
+});
+
+// ===========================
+// 🔹 CRUD de Alertas 
+// ===========================
+
+// ✅ Obtener todas las alertas
+app.get("/api/alertas", (req, res) => {
+  db.query(
+    `SELECT idAlerta, tipo_alerta, detalles_alerta, zona, usuario, resolucion, fecha_inicio, fecha_fin, estado, severidad, iddispositivo, idUsuario 
+     FROM alerta 
+     ORDER BY fecha_inicio DESC`,
+    (err, results) => {
+      if (err) {
+        console.error("Error al obtener alertas:", err);
+        return res.status(500).json({ error: "Error al obtener alertas" });
+      }
+      res.json(results);
+    }
+  );
+});
+
+
+// ✅ Marcar alerta como resuelta
+app.put("/api/alertas/:id/resolver", async (req, res) => {
+  const { id } = req.params;
+  try {
+    const [result] = await db.query(
+      "UPDATE Alerta SET estado = 'Resuelto', fecha_fin = NOW() WHERE idAlerta = ?",
+      [id]
+    );
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: "Alerta no encontrada" });
+    }
+    res.json({ message: "Alerta marcada como resuelta" });
+  } catch (error) {
+    console.error("Error al actualizar alerta:", error);
+    res.status(500).json({ error: "Error al actualizar alerta" });
+  }
+});
+
+// 📊 REPORTES DE ACCESOS
+app.get("/api/reportes", (req, res) => {
+  // --- Total de accesos, autorizados, denegados ---
+  const sqlTotales = `
+    SELECT 
+      COUNT(*) AS total_accesos,
+      SUM(estado_acceso = 'Autorizado') AS total_autorizados,
+      SUM(estado_acceso = 'Denegado') AS total_denegados
+    FROM acceso
+  `;
+
+  db.query(sqlTotales, (err, totales) => {
+    if (err) {
+      console.error("Error obteniendo totales:", err);
+      return res.status(500).json({ error: "Error obteniendo totales" });
+    }
+
+    // --- Accesos por hora ---
+    const sqlPorHora = `
+      SELECT 
+        DATE_FORMAT(fecha_inicio_acceso, '%H:00') AS hour,
+        COUNT(*) AS accesos
+      FROM acceso
+      GROUP BY hour
+      ORDER BY hour
+    `;
+
+    db.query(sqlPorHora, (err, porHora) => {
+      if (err) {
+        console.error("Error obteniendo accesos por hora:", err);
+        return res.status(500).json({ error: "Error obteniendo accesos por hora" });
+      }
+
+      // --- Accesos por zona ---
+      const sqlPorZona = `
+        SELECT 
+          z.nombre_zona AS name,
+          COUNT(*) AS value
+        FROM acceso a
+        JOIN zonas z ON a.idZona = z.idzonas
+        GROUP BY z.nombre_zona
+      `;
+
+      db.query(sqlPorZona, (err, porZona) => {
+        if (err) {
+          console.error("Error obteniendo accesos por zona:", err);
+          return res.status(500).json({ error: "Error obteniendo accesos por zona" });
+        }
+
+        // --- Tendencia semanal ---
+        const sqlSemanal = `
+          SELECT 
+            DAYNAME(fecha_inicio_acceso) AS dia,
+            SUM(estado_acceso = 'Autorizado') AS accesos,
+            SUM(estado_acceso = 'Denegado') AS denegados
+          FROM acceso
+          WHERE fecha_inicio_acceso >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+          GROUP BY dia
+          ORDER BY FIELD(dia, 'Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday')
+        `;
+
+        db.query(sqlSemanal, (err, semanal) => {
+          if (err) {
+            console.error("Error obteniendo tendencia semanal:", err);
+            return res.status(500).json({ error: "Error obteniendo tendencia semanal" });
+          }
+
+          // --- Top usuarios ---
+          const sqlTopUsuarios = `
+            SELECT 
+              CONCAT(u.nombre_usuario, ' ', u.apellido_usuario) AS name,
+              COUNT(a.idacceso) AS accesos,
+              u.cargo_usuario AS departamento
+            FROM acceso a
+            JOIN usuarios u ON a.idUsuario = u.idUsuarios
+            GROUP BY u.idUsuarios
+            ORDER BY accesos DESC
+            LIMIT 5
+          `;
+
+          db.query(sqlTopUsuarios, (err, topUsuarios) => {
+            if (err) {
+              console.error("Error obteniendo top usuarios:", err);
+              return res.status(500).json({ error: "Error obteniendo top usuarios" });
+            }
+
+            // 🔹 Responder con todos los datos
+            res.json({
+              totales: totales[0],
+              porHora,
+              porZona,
+              semanal,
+              topUsuarios
+            });
+          });
+        });
+      });
+    });
+  });
+});
+
+
 // 🚀 Iniciar servidor
 app.listen(process.env.PORT || 5001, () => {
   console.log(`Servidor corriendo en http://localhost:${process.env.PORT || 5001}`);

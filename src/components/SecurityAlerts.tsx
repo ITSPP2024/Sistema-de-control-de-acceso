@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
@@ -7,68 +7,41 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from ".
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { AlertTriangle, Shield, Eye, CheckCircle, Clock, Bell } from "lucide-react";
 
-const mockAlerts = [
-  {
-    id: 1,
-    timestamp: "2025-01-06 09:08:45",
-    type: "Acceso Denegado",
-    severity: "Alto",
-    zone: "Taller",
-    details: "Tarjeta RFID no autorizada (RFID999) intentó acceder",
-    status: "Pendiente",
-    user: "Usuario Desconocido",
-    actions: ["Revisar", "Bloquear Tarjeta"]
-  },
-  {
-    id: 2,
-    timestamp: "2025-01-06 08:55:11",
-    type: "Reconocimiento Facial Fallido",
-    severity: "Medio",
-    zone: "Área de Ventas",
-    details: "Múltiples intentos de reconocimiento facial sin éxito",
-    status: "En Revisión",
-    user: "Usuario Desconocido",
-    actions: ["Verificar Cámara", "Revisar Logs"]
-  },
-  {
-    id: 3,
-    timestamp: "2025-01-06 08:42:20",
-    type: "Ocupación Máxima Excedida",
-    severity: "Medio",
-    zone: "Administración",
-    details: "Zona excedió el límite de 8 personas simultáneas",
-    status: "Resuelto",
-    user: "Sistema",
-    actions: ["Revisar Límites"]
-  },
-  {
-    id: 4,
-    timestamp: "2025-01-06 07:30:15",
-    type: "Acceso Fuera de Horario",
-    severity: "Alto",
-    zone: "Almacén de Repuestos",
-    details: "Acceso autorizado detectado fuera del horario permitido",
-    status: "Resuelto",
-    user: "Carlos López",
-    actions: ["Verificar Autorización"]
-  },
-  {
-    id: 5,
-    timestamp: "2025-01-05 23:45:30",
-    type: "Puerta Forzada",
-    severity: "Crítico",
-    zone: "Administración",
-    details: "Sensor de puerta indica apertura sin autorización",
-    status: "Resuelto",
-    user: "Sistema de Seguridad",
-    actions: ["Revisar Video", "Verificar Integridad"]
-  }
-];
+interface AlertItem {
+  idAlerta: number;
+  timestamp: string; // fecha_inicio
+  type: string; // tipo_alerta
+  severity: string; // severidad
+  zone: string; // zona
+  details: string; // detalles_alerta
+  status: string; // estado
+  user: string; // usuario
+}
 
 export function SecurityAlerts() {
-  const [alerts, setAlerts] = useState(mockAlerts);
+  const [alerts, setAlerts] = useState<AlertItem[]>([]);
   const [severityFilter, setSeverityFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+
+  // 🔹 Traer alertas desde la API
+  useEffect(() => {
+    fetch("http://localhost:5001/api/alertas")
+      .then(res => res.json())
+      .then(data => {
+        const mapped = data.map((a: any) => ({
+          idAlerta: a.idAlerta,
+          timestamp: a.fecha_inicio,
+          type: a.tipo_alerta,
+          severity: a.severidad,
+          zone: a.zona,
+          details: a.detalles_alerta,
+          status: a.estado,
+          user: a.usuario || "Usuario Desconocido"
+        }));
+        setAlerts(mapped);
+      })
+      .catch(err => console.error("Error al obtener alertas:", err));
+  }, []);
 
   const filteredAlerts = alerts.filter(alert => {
     const matchesSeverity = severityFilter === "all" || alert.severity.toLowerCase() === severityFilter;
@@ -115,9 +88,14 @@ export function SecurityAlerts() {
   };
 
   const handleMarkAsResolved = (alertId: number) => {
-    setAlerts(alerts.map(alert => 
-      alert.id === alertId ? { ...alert, status: "Resuelto" } : alert
-    ));
+    fetch(`http://localhost:5001/api/alertas/${alertId}/resolver`, { method: "PUT" })
+      .then(res => {
+        if (!res.ok) throw new Error("No se pudo resolver la alerta");
+        setAlerts(alerts.map(alert =>
+          alert.idAlerta === alertId ? { ...alert, status: "Resuelto" } : alert
+        ));
+      })
+      .catch(err => console.error(err));
   };
 
   const pendingAlerts = filteredAlerts.filter(alert => alert.status === "Pendiente");
@@ -138,7 +116,6 @@ export function SecurityAlerts() {
         </Button>
       </div>
 
-      {/* Alertas críticas */}
       {criticalAlerts.length > 0 && (
         <Alert className="border-red-200 bg-red-50">
           <AlertTriangle className="h-4 w-4 text-red-600" />
@@ -148,7 +125,6 @@ export function SecurityAlerts() {
         </Alert>
       )}
 
-      {/* Estadísticas */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="p-4">
           <div className="flex items-center space-x-2">
@@ -193,7 +169,6 @@ export function SecurityAlerts() {
       </div>
 
       <Card className="p-6">
-        {/* Filtros */}
         <div className="flex space-x-4 mb-6">
           <Select value={severityFilter} onValueChange={setSeverityFilter}>
             <SelectTrigger className="w-48">
@@ -221,7 +196,6 @@ export function SecurityAlerts() {
           </Select>
         </div>
 
-        {/* Tabla de alertas */}
         <Table>
           <TableHeader>
             <TableRow>
@@ -236,10 +210,8 @@ export function SecurityAlerts() {
           </TableHeader>
           <TableBody>
             {filteredAlerts.map((alert) => (
-              <TableRow key={alert.id}>
-                <TableCell className="font-mono text-sm">
-                  {alert.timestamp}
-                </TableCell>
+              <TableRow key={alert.idAlerta}>
+                <TableCell className="font-mono text-sm">{alert.timestamp}</TableCell>
                 <TableCell>
                   <div className="flex items-center space-x-2">
                     {getSeverityIcon(alert.severity)}
@@ -247,36 +219,24 @@ export function SecurityAlerts() {
                   </div>
                 </TableCell>
                 <TableCell>
-                  <Badge variant={getSeverityColor(alert.severity)}>
-                    {alert.severity}
-                  </Badge>
+                  <Badge variant={getSeverityColor(alert.severity)}>{alert.severity}</Badge>
                 </TableCell>
                 <TableCell>{alert.zone}</TableCell>
-                <TableCell className="max-w-xs truncate" title={alert.details}>
-                  {alert.details}
-                </TableCell>
+                <TableCell className="max-w-xs truncate" title={alert.details}>{alert.details}</TableCell>
                 <TableCell>
                   <div className="flex items-center space-x-2">
                     {getStatusIcon(alert.status)}
-                    <Badge variant={getStatusColor(alert.status)}>
-                      {alert.status}
-                    </Badge>
+                    <Badge variant={getStatusColor(alert.status)}>{alert.status}</Badge>
                   </div>
                 </TableCell>
                 <TableCell>
                   <div className="flex space-x-2">
                     {alert.status === "Pendiente" && (
-                      <Button 
-                        size="sm" 
-                        variant="outline"
-                        onClick={() => handleMarkAsResolved(alert.id)}
-                      >
+                      <Button size="sm" variant="outline" onClick={() => handleMarkAsResolved(alert.idAlerta)}>
                         Resolver
                       </Button>
                     )}
-                    <Button size="sm" variant="outline">
-                      Ver Detalles
-                    </Button>
+                    <Button size="sm" variant="outline">Ver Detalles</Button>
                   </div>
                 </TableCell>
               </TableRow>

@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import axios from "axios";
 import { Card } from "./components/ui/card";
 import { Button } from "./components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/ui/tabs";
@@ -27,6 +28,28 @@ export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("dashboard");
+  const [companyData, setCompanyData] = useState({
+    name: "",
+    description: "",
+    primary_color: "#2563eb",
+    secondary_color: "#ffffffff",
+    accent_color: "#0ea5e9"
+  });
+
+  // Traer datos de la empresa desde la API
+  useEffect(() => {
+    axios.get("http://localhost:5001/api/empresa")
+      .then(res => {
+        setCompanyData({
+          name: res.data.nombre_empresa,
+          description: res.data.description_empresa,
+          primary_color: res.data.primary_color || "#2563eb",
+          secondary_color: res.data.secondary_color || "#ffffffff",
+          accent_color: res.data.accent_color || "#0ea5e9"
+        });
+      })
+      .catch(err => console.error("Error al obtener datos de la empresa:", err));
+  }, []);
 
   const handleLogin = (email: string, password: string) => {
     setIsAuthenticated(true);
@@ -45,17 +68,19 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen" style={{ backgroundColor: companyData.secondary_color }}>
       {/* Header */}
       <header className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="flex items-center justify-center w-10 h-10 bg-blue-600 rounded-lg">
+            <div className="flex items-center justify-center w-10 h-10" style={{ backgroundColor: companyData.primary_color, borderRadius: 8 }}>
               <Shield className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="text-xl font-semibold">SecureAccess Pro</h1>
-              <p className="text-sm text-muted-foreground">Sistema de Control de Acceso - Agencia</p>
+              <h1 className="text-xl font-semibold" style={{ color: companyData.primary_color }}>
+                {companyData.name}
+              </h1>
+              <p className="text-sm text-muted-foreground">{companyData.description}</p>
             </div>
           </div>
           <div className="flex items-center space-x-3">
