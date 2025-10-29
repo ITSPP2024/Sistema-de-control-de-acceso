@@ -8,7 +8,7 @@ import { Building2, Upload, Save } from "lucide-react";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
 import axios from "axios";
 
-export function CompanyProfile() {
+export function CompanyProfile({ currentUser }: any) {
   const [companyData, setCompanyData] = useState({
     name: "",
     description: "",
@@ -44,11 +44,36 @@ export function CompanyProfile() {
       .catch(err => console.error("Error al cargar la empresa:", err));
   }, []);
 
+  // 🧾 Registrar auditoría
+  const registrarAuditoria = async (accion: string, detalle: string) => {
+    if (!currentUser) return;
+    try {
+      await axios.post("http://localhost:5001/api/auditoria", {
+        correo: currentUser,
+        accion,
+        entidad: "EMPRESA",
+        entidad_id: 1,
+        detalle
+      });
+    } catch (err) {
+      console.error("Error registrando auditoría:", err);
+    }
+  };
+
   // Guardar cambios en la base de datos
-  const handleSave = () => {
-    axios.put("http://localhost:5001/api/empresa/1", companyData)
-      .then(() => alert("Configuración de la empresa guardada exitosamente"))
-      .catch(err => console.error("Error al guardar empresa:", err));
+  const handleSave = async () => {
+    try {
+      await axios.put("http://localhost:5001/api/empresa/1", companyData);
+      alert("Configuración de la empresa guardada exitosamente");
+
+      // 🧾 Registrar en auditoría
+      await registrarAuditoria(
+        "EDITAR",
+        `El usuario ${currentUser} modificó la configuración de la empresa (${companyData.name})`
+      );
+    } catch (err) {
+      console.error("Error al guardar empresa:", err);
+    }
   };
 
   // Subir logo (solo guarda la ruta, no Base64)

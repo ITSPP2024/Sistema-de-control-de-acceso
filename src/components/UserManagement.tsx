@@ -11,7 +11,7 @@ import { Label } from "./ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Plus, Edit, Trash2, Camera } from "lucide-react";
 
-export function UserManagement() {
+export function UserManagement({ currentUser }: any) {
   const [users, setUsers] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -31,7 +31,7 @@ export function UserManagement() {
     photo: null
   });
 
-  // --- Función para cargar usuarios ---
+  // --- Cargar usuarios ---
   const fetchUsers = () => {
     axios.get("http://localhost:5001/api/usuarios")
       .then(res => setUsers(res.data))
@@ -42,7 +42,7 @@ export function UserManagement() {
     fetchUsers();
   }, []);
 
-  // --- Filtros ---
+  // --- Filtrar usuarios ---
   const filteredUsers = users.filter(user =>
     (`${user.nombre_usuario} ${user.apellido_usuario}`.toLowerCase().includes(searchTerm.toLowerCase())) ||
     (user.correo_usuario?.toLowerCase().includes(searchTerm.toLowerCase())) ||
@@ -57,23 +57,27 @@ export function UserManagement() {
       default: return "default";
     }
   };
-// --- Registrar auditoría ---
-const registrarAuditoria = async (accion, descripcion) => {
-  try {
-    await axios.post("http://localhost:5001/api/auditoria", {
-      idUsuario: 1, // <-- luego cámbialo por el id real del usuario logueado
-      accion,
-      descripcion
-    });
-  } catch (err) {
-    console.error("Error registrando auditoría:", err);
-  }
-};
 
   const getStatusColor = (status: string) => status === "Activo" ? "default" : "secondary";
 
   const getInitials = (name: string) =>
     name?.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2) || "NA";
+
+  // --- Registrar auditoría ---
+  const registrarAuditoria = async (accion: string, entidad: string, entidad_id: any, detalle: string) => {
+    if (!currentUser) return;
+    try {
+      await axios.post("http://localhost:5001/api/auditoria", {
+        correo: currentUser,  // 👈 el mismo email que ves en App.tsx
+        accion,
+        entidad,
+        entidad_id,
+        detalle
+      });
+    } catch (err) {
+      console.error("Error registrando auditoría:", err);
+    }
+  };
 
   // --- Crear usuario ---
   const handleCreateUser = async () => {
@@ -100,6 +104,12 @@ const registrarAuditoria = async (accion, descripcion) => {
         targeta_usuario: "",
         photo: null
       });
+      await registrarAuditoria(
+        "CREAR",
+        "USUARIO",
+        res.data.idUsuarios,
+        `Usuario ${newUser.nombre_usuario} ${newUser.apellido_usuario} creado con correo ${newUser.correo_usuario}`
+      );
     } catch (err) {
       console.error("Error creando usuario:", err);
     }
@@ -118,6 +128,12 @@ const registrarAuditoria = async (accion, descripcion) => {
         fetchUsers();
         setIsEditDialogOpen(false);
         setEditingUser(null);
+        await registrarAuditoria(
+          "EDITAR",
+          "USUARIO",
+          editingUser.idUsuarios,
+          `Usuario ${editingUser.nombre_usuario} ${editingUser.apellido_usuario} modificado`
+        );
       } catch (err) {
         console.error("Error editando usuario:", err);
       }
@@ -130,6 +146,12 @@ const registrarAuditoria = async (accion, descripcion) => {
       try {
         await axios.delete(`http://localhost:5001/api/usuarios/${id}`);
         fetchUsers();
+        await registrarAuditoria(
+          "ELIMINAR",
+          "USUARIO",
+          id,
+          `Usuario con ID ${id} eliminado`
+        );
       } catch (err) {
         console.error("Error eliminando usuario:", err);
       }

@@ -52,11 +52,26 @@ export default function App() {
       .catch(err => console.error("Error al obtener datos de la empresa:", err));
   }, []);
 
-  // 🔔 Obtener alertas activas
+  // 🔔 Obtener alertas activas en tiempo real (cada 5 segundos)
   useEffect(() => {
-    axios.get("http://localhost:5001/api/alerts")
-      .then(res => setAlerts(res.data))
-      .catch(err => console.error("Error al obtener alertas:", err));
+    const fetchAlerts = () => {
+      axios.get("http://localhost:5001/api/dashboard/alerts-detail") // endpoint con detalles
+        .then(res => {
+          // Mapear alertas para mostrar mensaje legible
+          const mapped = res.data.map(a => ({
+            id: a.id,
+            message: `${a.usuario} ${a.accion} ${a.entidad}`,
+            detalle: a.detalle || "",
+            time: new Date(a.fecha).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          }));
+          setAlerts(mapped);
+        })
+        .catch(err => console.error("Error al obtener alertas:", err));
+    };
+
+    fetchAlerts();
+    const interval = setInterval(fetchAlerts, 5000); // actualizar cada 5 segundos
+    return () => clearInterval(interval);
   }, []);
 
   const handleLogin = (email, password) => {
@@ -95,45 +110,74 @@ export default function App() {
           </div>
 
           {/* 🔔 Botón de alertas dinámicas */}
-          <div className="flex items-center space-x-3 relative">
-            <Button variant="outline" size="sm" onClick={() => setShowAlerts(!showAlerts)}>
-              <Bell className="w-4 h-4 mr-2" />
-              {alerts.length} Alertas
-            </Button>
+<div className="flex items-center space-x-3 relative">
+  <Button
+    variant="outline"
+    size="sm"
+    onClick={() => setShowAlerts(!showAlerts)}
+    className="relative"
+  >
+    <Bell className="w-4 h-4 mr-2" />
+    {alerts.length} Alertas
+  </Button>
 
-            {/* Popup de alertas */}
-            {showAlerts && (
-              <div className="absolute right-0 top-12 w-80 bg-white shadow-lg border border-gray-200 rounded-lg z-50 p-3">
-                <h4 className="font-semibold text-gray-800 mb-2">Alertas Activas</h4>
-                {alerts.length === 0 ? (
-                  <p className="text-sm text-gray-500">No hay alertas activas</p>
-                ) : (
-                  alerts.map(alert => (
-                    <div key={alert.id} className="border-b border-gray-100 py-2 last:border-b-0">
-                      <p className="text-sm font-medium">{alert.message}</p>
-                      <p className="text-xs text-gray-500">{alert.time}</p>
-                    </div>
-                  ))
-                )}
-              </div>
+  {/* Popup de alertas */}
+{showAlerts && (
+  <div
+    className="absolute right-0 top-200 w-80 bg-white shadow-xl border border-gray-200 rounded-xl z-50 p-3 transition-all duration-200 transform origin-top scale-100 hover:scale-[1.01]"
+    onMouseLeave={() => setShowAlerts(false)} // se cierra al quitar el cursor
+  >
+    <h4 className="font-semibold text-gray-800 mb-2 flex justify-between items-center">
+      Alertas Activas
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-6 w-6 text-gray-500 hover:text-red-500"
+        onClick={() => setShowAlerts(false)}
+      >
+        ✕
+      </Button>
+    </h4>
+
+    <div className="max-h-80 overflow-y-auto pr-2 custom-scrollbar">
+      {alerts.length === 0 ? (
+        <p className="text-sm text-gray-500 py-2">No hay alertas activas</p>
+      ) : (
+        alerts.map(alert => (
+          <div
+            key={alert.id}
+            className="border-b border-gray-100 py-2 last:border-b-0 hover:bg-gray-50 rounded-md px-2"
+          >
+            <p className="text-sm font-medium text-gray-800">{alert.message}</p>
+            {alert.detalle && (
+              <p className="text-xs text-gray-500">{alert.detalle}</p>
             )}
-
-            {/* Usuario actual */}
-            <div className="flex items-center space-x-3">
-              <div className="text-right mr-2">
-                <p className="text-sm font-medium">{currentUser?.split('@')[0]}</p>
-                <p className="text-xs text-muted-foreground">{currentUser}</p>
-              </div>
-              <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                <span className="text-sm font-medium text-blue-600">
-                  {currentUser?.charAt(0).toUpperCase()}
-                </span>
-              </div>
-              <Button variant="ghost" size="sm" onClick={handleLogout} className="ml-2">
-                <LogOut className="w-4 h-4" />
-              </Button>
-            </div>
+            <p className="text-xs text-gray-400">{alert.time}</p>
           </div>
+        ))
+      )}
+    </div>
+  </div>
+)}
+
+
+  {/* Usuario actual */}
+  <div className="flex items-center space-x-3">
+    <div className="text-right mr-2">
+      <p className="text-sm font-medium">{currentUser?.split("@")[0]}</p>
+      <p className="text-xs text-muted-foreground">{currentUser}</p>
+    </div>
+    <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+      <span className="text-sm font-medium text-blue-600">
+        {currentUser?.charAt(0).toUpperCase()}
+      </span>
+    </div>
+    <Button variant="ghost" size="sm" onClick={handleLogout} className="ml-2">
+      <LogOut className="w-4 h-4" />
+    </Button>
+  </div>
+</div>
+
         </div>
       </header>
 

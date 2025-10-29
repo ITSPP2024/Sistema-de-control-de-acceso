@@ -777,45 +777,87 @@ app.get("/api/dashboard/active-alerts", (req, res) => {
 });
 
 // ==============================================
-// 🧾 AUDITORÍA (usando tu tabla)
+// 🧾 AUDITORÍA (usando la tabla administradores con búsqueda por correo)
 // ==============================================
 
-// Registrar acción
 app.post("/api/auditoria", (req, res) => {
-  const { usuario_id, accion, entidad, entidad_id, detalle } = req.body;
+  const { correo, accion, entidad, entidad_id, detalle } = req.body;
 
-  if (!usuario_id || !accion || !entidad) {
-    return res.status(400).json({ error: "Faltan campos obligatorios" });
+  if (!correo || !accion || !entidad) {
+    return res.status(400).json({ error: "Faltan campos obligatorios (correo, accion o entidad)" });
   }
 
-  const sql = `
-    INSERT INTO auditoria (usuario_id, accion, entidad, entidad_id, detalle)
-    VALUES (?, ?, ?, ?, ?)
+  // Buscar el administrador por correo
+  const sqlBuscar = `
+    SELECT idAdministrador 
+    FROM administradores 
+    WHERE Correo_Administrador = ?
+    LIMIT 1
   `;
-  const values = [
-    usuario_id,
-    accion,
-    entidad,
-    entidad_id || null,
-    detalle || null
-  ];
 
-  db.query(sql, values, (err, result) => {
+  db.query(sqlBuscar, [correo], (err, result) => {
     if (err) {
-      console.error("❌ Error al registrar auditoría:", err);
-      return res.status(500).json({ error: err });
+      console.error("❌ Error al buscar administrador:", err);
+      return res.status(500).json({ error: "Error al buscar administrador" });
     }
-    res.json({ message: "Auditoría registrada correctamente" });
+
+    if (result.length === 0) {
+      console.warn(`⚠️ No se encontró administrador con el correo: ${correo}`);
+      return res.status(404).json({ error: "Administrador no encontrado" });
+    }
+
+    const usuario_id = result[0].idAdministrador;
+
+    // Insertar la auditoría
+    const sqlInsert = `
+      INSERT INTO auditoria (usuario_id, accion, entidad, entidad_id, detalle)
+      VALUES (?, ?, ?, ?, ?)
+    `;
+    const values = [usuario_id, accion, entidad, entidad_id || null, detalle || null];
+
+    db.query(sqlInsert, values, (err2) => {
+      if (err2) {
+        console.error("❌ Error al registrar auditoría:", err2);
+        return res.status(500).json({ error: "Error al registrar auditoría" });
+      }
+
+      console.log(`✅ Auditoría registrada (${correo} → ${accion} ${entidad})`);
+      res.json({ message: "Auditoría registrada correctamente" });
+    });
   });
 });
+
 
 // Obtener todas las acciones de auditoría
 app.get("/api/auditoria", (req, res) => {
   const sql = `
-    SELECT a.*, u.nombre_usuario, u.apellido_usuario
+    SELECT a.*, ad.Nombre_Administrador, ad.Apellido_Administrador
     FROM auditoria a
-    LEFT JOIN usuarios u ON a.usuario_id = u.idUsuarios
+    LEFT JOIN administradores ad ON a.usuario_id = ad.idAdministrador
     ORDER BY a.fecha DESC
+  `;
+  db.query(sql, (err, results) => {
+    if (err) return res.status(500).json({ error: err });
+    res.json(results);
+  });
+});
+
+
+// Detalles de alertas recientes
+app.get("/api/dashboard/alerts-detail", (req, res) => {
+  const sql = `
+    SELECT 
+      a.id, 
+      CONCAT(ad.Nombre_Administrador, ' ', ad.Apellido_Administrador) AS usuario, 
+      a.accion, 
+      a.entidad, 
+      a.detalle, 
+      a.fecha
+    FROM auditoria a
+    LEFT JOIN administradores ad ON a.usuario_id = ad.idAdministrador
+    WHERE DATE(a.fecha) = CURDATE()
+    ORDER BY a.fecha DESC
+    LIMIT 20
   `;
   db.query(sql, (err, results) => {
     if (err) return res.status(500).json({ error: err });
