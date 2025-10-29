@@ -654,7 +654,7 @@ app.get("/api/reportes", (req, res) => {
           FROM acceso
           WHERE fecha_inicio_acceso >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
           GROUP BY dia
-          ORDER BY FIELD(dia, 'Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday')
+          ORDER BY FIELD(dia, 'Lun','Mar','Mier','Juev','Vier','Sab','Dom')
         `;
 
         db.query(sqlSemanal, (err, semanal) => {
@@ -697,6 +697,131 @@ app.get("/api/reportes", (req, res) => {
   });
 });
 
+// ==========================
+// 📊 ENDPOINTS PARA DASHBOARD
+// ==========================
+
+// ✅ Obtener estadísticas principales para el dashboard
+app.get("/api/dashboard/stats", (req, res) => {
+  const sql = `
+    SELECT 
+      (SELECT COUNT(*) FROM usuarios) AS totalUsers,
+      (SELECT COUNT(DISTINCT idUsuario) 
+         FROM acceso 
+         WHERE DATE(fecha_inicio_acceso) = CURDATE()) AS activeUsers,
+      (SELECT COUNT(*) 
+         FROM acceso 
+         WHERE DATE(fecha_inicio_acceso) = CURDATE()) AS todayAccesses,
+      (SELECT COUNT(*) 
+         FROM acceso 
+         WHERE estado_acceso = 'Denegado' AND DATE(fecha_inicio_acceso) = CURDATE()) AS unauthorizedAttempts,
+      (SELECT COUNT(*) 
+         FROM zonas 
+         WHERE estado_zona = 'Activa') AS secureZones
+  `;
+
+  db.query(sql, (err, results) => {
+    if (err) {
+      console.error("❌ Error obteniendo stats dashboard:", err);
+      return res.status(500).json({ error: err.sqlMessage });
+    }
+    res.json(results[0]);
+  });
+});
+
+// ✅ Obtener últimos accesos recientes
+app.get("/api/dashboard/recent-accesses", (req, res) => {
+  const sql = `
+    SELECT 
+      a.idacceso AS id,
+      CONCAT(u.nombre_usuario, ' ', u.apellido_usuario) AS user,
+      z.nombre_zona AS zone,
+      TIME(a.fecha_inicio_acceso) AS time,
+      a.estado_acceso AS status
+    FROM acceso a
+    LEFT JOIN usuarios u ON a.idUsuario = u.idUsuarios
+    LEFT JOIN zonas z ON a.idZona = z.idzonas
+    ORDER BY a.fecha_inicio_acceso DESC
+    LIMIT 10
+  `;
+
+  db.query(sql, (err, results) => {
+    if (err) {
+      console.error("❌ Error obteniendo accesos recientes:", err);
+      return res.status(500).json({ error: err.sqlMessage });
+    }
+    // Convertir estado a 'success' o 'denied' para frontend
+    const mapped = results.map(r => ({
+      ...r,
+      status: r.status === "Autorizado" ? "success" : "denied",
+      time: r.time ? r.time.substring(0,5) : ""
+    }));
+    res.json(mapped);
+  });
+});
+
+// ✅ Obtener alertas activas (opcional para mostrar en dashboard)
+app.get("/api/dashboard/active-alerts", (req, res) => {
+  const sql = `
+    SELECT COUNT(*) AS count
+    FROM alerta
+    WHERE estado = 'Pendiente' AND DATE(fecha_inicio) = CURDATE()
+  `;
+  db.query(sql, (err, results) => {
+    if (err) {
+      console.error("❌ Error obteniendo alertas activas:", err);
+      return res.status(500).json({ error: err.sqlMessage });
+    }
+    res.json({ activeAlerts: results[0].count });
+  });
+});
+
+// ==============================================
+// 🧾 AUDITORÍA (usando tu tabla)
+// ==============================================
+
+// Registrar acción
+app.post("/api/auditoria", (req, res) => {
+  const { usuario_id, accion, entidad, entidad_id, detalle } = req.body;
+
+  if (!usuario_id || !accion || !entidad) {
+    return res.status(400).json({ error: "Faltan campos obligatorios" });
+  }
+
+  const sql = `
+    INSERT INTO auditoria (usuario_id, accion, entidad, entidad_id, detalle)
+    VALUES (?, ?, ?, ?, ?)
+  `;
+  const values = [
+    usuario_id,
+    accion,
+    entidad,
+    entidad_id || null,
+    detalle || null
+  ];
+
+  db.query(sql, values, (err, result) => {
+    if (err) {
+      console.error("❌ Error al registrar auditoría:", err);
+      return res.status(500).json({ error: err });
+    }
+    res.json({ message: "Auditoría registrada correctamente" });
+  });
+});
+
+// Obtener todas las acciones de auditoría
+app.get("/api/auditoria", (req, res) => {
+  const sql = `
+    SELECT a.*, u.nombre_usuario, u.apellido_usuario
+    FROM auditoria a
+    LEFT JOIN usuarios u ON a.usuario_id = u.idUsuarios
+    ORDER BY a.fecha DESC
+  `;
+  db.query(sql, (err, results) => {
+    if (err) return res.status(500).json({ error: err });
+    res.json(results);
+  });
+});
 
 // 🚀 Iniciar servidor
 app.listen(process.env.PORT || 5001, () => {

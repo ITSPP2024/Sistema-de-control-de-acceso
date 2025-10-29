@@ -1,25 +1,33 @@
+import { useEffect, useState } from "react";
 import { Card } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Users, Shield, AlertTriangle, Activity } from "lucide-react";
 
-const mockStats = {
-  totalUsers: 45,
-  activeUsers: 12,
-  todayAccesses: 156,
-  unauthorizedAttempts: 3,
-  secureZones: 4
-};
-
-const recentAccesses = [
-  { id: 1, user: "María González", zone: "Taller", time: "09:15", status: "success" },
-  { id: 2, user: "Carlos López", zone: "Área de Ventas", time: "09:12", status: "success" },
-  { id: 3, user: "Usuario Desconocido", zone: "Taller", time: "09:08", status: "denied" },
-  { id: 4, user: "Ana Rodríguez", zone: "Oficina", time: "09:05", status: "success" },
-  { id: 5, user: "Juan Pérez", zone: "Área de Ventas", time: "09:02", status: "success" }
-];
-
 export function Dashboard() {
+  const [stats, setStats] = useState({
+    totalUsers: 0,
+    activeUsers: 0,
+    todayAccesses: 0,
+    unauthorizedAttempts: 0,
+    secureZones: 0
+  });
+
+  const [recentAccesses, setRecentAccesses] = useState([]);
+
+  // 📡 Obtener estadísticas del dashboard
+  useEffect(() => {
+    fetch("http://localhost:5001/api/dashboard/stats")
+      .then(res => res.json())
+      .then(data => setStats(data))
+      .catch(err => console.error("Error obteniendo stats:", err));
+
+    fetch("http://localhost:5001/api/dashboard/recent-accesses")
+      .then(res => res.json())
+      .then(data => setRecentAccesses(data))
+      .catch(err => console.error("Error obteniendo accesos recientes:", err));
+  }, []);
+
   return (
     <div className="space-y-6">
       <div>
@@ -35,7 +43,7 @@ export function Dashboard() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-muted-foreground">Usuarios Totales</p>
-              <div className="text-2xl">{mockStats.totalUsers}</div>
+              <div className="text-2xl">{stats.totalUsers}</div>
             </div>
             <Users className="h-8 w-8 text-blue-600" />
           </div>
@@ -44,8 +52,8 @@ export function Dashboard() {
         <Card className="p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-muted-foreground">Usuarios Activos</p>
-              <div className="text-2xl">{mockStats.activeUsers}</div>
+              <p className="text-muted-foreground">Usuarios Activos Hoy</p>
+              <div className="text-2xl">{stats.activeUsers}</div>
             </div>
             <Activity className="h-8 w-8 text-green-600" />
           </div>
@@ -55,7 +63,7 @@ export function Dashboard() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-muted-foreground">Accesos Hoy</p>
-              <div className="text-2xl">{mockStats.todayAccesses}</div>
+              <div className="text-2xl">{stats.todayAccesses}</div>
             </div>
             <Shield className="h-8 w-8 text-blue-600" />
           </div>
@@ -65,7 +73,7 @@ export function Dashboard() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-muted-foreground">Intentos Denegados</p>
-              <div className="text-2xl">{mockStats.unauthorizedAttempts}</div>
+              <div className="text-2xl">{stats.unauthorizedAttempts}</div>
             </div>
             <AlertTriangle className="h-8 w-8 text-red-600" />
           </div>
@@ -73,11 +81,11 @@ export function Dashboard() {
       </div>
 
       {/* Alerta de seguridad */}
-      {mockStats.unauthorizedAttempts > 0 && (
+      {stats.unauthorizedAttempts > 0 && (
         <Alert className="border-red-200 bg-red-50">
           <AlertTriangle className="h-4 w-4 text-red-600" />
           <AlertDescription className="text-red-800">
-            Se detectaron {mockStats.unauthorizedAttempts} intentos de acceso no autorizados en las últimas 24 horas.
+            Se detectaron {stats.unauthorizedAttempts} intentos de acceso no autorizados en las últimas 24 horas.
           </AlertDescription>
         </Alert>
       )}
@@ -90,8 +98,8 @@ export function Dashboard() {
             <div key={access.id} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-b-0">
               <div className="flex items-center space-x-3">
                 <div>
-                  <div className="font-medium">{access.user}</div>
-                  <div className="text-sm text-muted-foreground">{access.zone}</div>
+                  <div className="font-medium">{access.user || "Usuario Desconocido"}</div>
+                  <div className="text-sm text-muted-foreground">{access.zone || "Sin zona"}</div>
                 </div>
               </div>
               <div className="flex items-center space-x-2">

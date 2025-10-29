@@ -57,6 +57,18 @@ export function UserManagement() {
       default: return "default";
     }
   };
+// --- Registrar auditoría ---
+const registrarAuditoria = async (accion, descripcion) => {
+  try {
+    await axios.post("http://localhost:5001/api/auditoria", {
+      idUsuario: 1, // <-- luego cámbialo por el id real del usuario logueado
+      accion,
+      descripcion
+    });
+  } catch (err) {
+    console.error("Error registrando auditoría:", err);
+  }
+};
 
   const getStatusColor = (status: string) => status === "Activo" ? "default" : "secondary";
 

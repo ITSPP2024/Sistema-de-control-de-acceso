@@ -130,7 +130,7 @@ export function AccessReports() {
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={porHora}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="hora" />
+              <XAxis dataKey="hour" />
               <YAxis />
               <Tooltip />
               <Bar dataKey="accesos" fill="#3B82F6" />
@@ -167,33 +167,6 @@ export function AccessReports() {
           </ResponsiveContainer>
         </Card>
       </div>
-
-      {/* Tendencia semanal */}
-      <Card className="p-6">
-        <h3 className="mb-4">Tendencia Semanal</h3>
-        <ResponsiveContainer width="100%" height={300}>
-          <LineChart data={semanal}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="dia" />
-            <YAxis />
-            <Tooltip />
-            <Line
-              type="monotone"
-              dataKey="accesos"
-              stroke="#3B82F6"
-              strokeWidth={2}
-              name="Autorizados"
-            />
-            <Line
-              type="monotone"
-              dataKey="denegados"
-              stroke="#EF4444"
-              strokeWidth={2}
-              name="Denegados"
-            />
-          </LineChart>
-        </ResponsiveContainer>
-      </Card>
 
       {/* Usuarios más activos */}
       <Card className="p-6">
