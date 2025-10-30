@@ -2,6 +2,7 @@ import express from "express";
 import mysql from "mysql2";
 import cors from "cors";
 import dotenv from "dotenv";
+import bcrypt from "bcrypt";
 
 dotenv.config();
 const app = express();
@@ -31,26 +32,74 @@ app.post("/api/login", (req, res) => {
   if (!email || !password)
     return res.status(400).json({ error: "Faltan datos" });
 
-  const query = `
-    SELECT * FROM Administradores
-    WHERE Correo_Administrador = ? AND Contraseña_Administrador = ?
-  `;
+  const query = `SELECT * FROM Administradores WHERE Correo_Administrador = ?`;
+  db.query(query, [email], async (err, results) => {
+    if (err) {
+      console.error("Error DB:", err);
+      return res.status(500).json({ error: "Error en la base de datos" });
+    }
 
-  db.query(query, [email, password], (err, results) => {
-    if (err) return res.status(500).json({ error: err.message });
-    if (results.length === 0)
+    if (results.length === 0) {
       return res.status(401).json({ error: "Correo o contraseña incorrectos" });
+    }
 
     const admin = results[0];
-    res.json({
-      message: "Login exitoso",
-      admin: {
-        id: admin.idAdministrador,
-        nombre: admin.Nombre_Administrador,
-        correo: admin.Correo_Administrador,
-        telefono: admin.Telefono_Administrador
+
+    // Soportar ambos nombres de columna por si tienes ñ u otra variante
+    const storedRaw = admin.Contrasena_Administrador ?? admin.Contraseña_Administrador ?? null;
+
+    try {
+      let hashToCompare = storedRaw;
+
+      // 1) Si no hay nada guardado -> generamos hash con la contraseña proporcionada y guardamos
+      if (!storedRaw || storedRaw.trim() === "") {
+        const newHash = await bcrypt.hash(password, 10);
+        const updateSql = `UPDATE Administradores SET Contrasena_Administrador = ? WHERE idAdministrador = ?`;
+        db.query(updateSql, [newHash, admin.idAdministrador], (uErr) => {
+          if (uErr) console.error("Error actualizando hash (vacio->hash):", uErr);
+          else console.log(`Hash guardado para admin id=${admin.idAdministrador} (was empty).`);
+        });
+        hashToCompare = newHash;
+      } else if (storedRaw.length < 60) {
+        // 2) Si el valor existente parece texto plano (hash bcrypt tiene ~60 chars)
+        //    Solo lo convertimos si coincide con la contraseña que ingresó el usuario.
+        if (storedRaw === password) {
+          const newHash = await bcrypt.hash(password, 10);
+          const updateSql = `UPDATE Administradores SET Contrasena_Administrador = ? WHERE idAdministrador = ?`;
+          db.query(updateSql, [newHash, admin.idAdministrador], (uErr) => {
+            if (uErr) console.error("Error actualizando hash (plain->hash):", uErr);
+            else console.log(`Plain->hash guardado para admin id=${admin.idAdministrador}.`);
+          });
+          hashToCompare = newHash;
+        } else {
+          // Si el texto plano en DB NO coincide con lo ingresado, no sobreescribimos (seguridad)
+          return res.status(401).json({ error: "Correo o contraseña incorrectos" });
+        }
       }
-    });
+      // 3) Si storedRaw parece ser un hash (length >= 60), lo usamos directamente
+      //    (hashToCompare ya apunta a storedRaw en ese caso)
+
+      // Finalmente comparamos
+      const passwordMatch = await bcrypt.compare(password, hashToCompare);
+
+      if (!passwordMatch) {
+        return res.status(401).json({ error: "Correo o contraseña incorrectos" });
+      }
+
+      // Login exitoso - responde con los datos que uses en tu app
+      res.json({
+        message: "Login exitoso",
+        admin: {
+          id: admin.idAdministrador,
+          nombre: admin.Nombre_Administrador,
+          correo: admin.Correo_Administrador,
+          telefono: admin.Telefono_Administrador
+        }
+      });
+    } catch (e) {
+      console.error("Error en login/migración de contraseña:", e);
+      res.status(500).json({ error: "Error interno" });
+    }
   });
 });
 
