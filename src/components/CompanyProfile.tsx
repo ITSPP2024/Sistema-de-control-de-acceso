@@ -76,12 +76,28 @@ export function CompanyProfile({ currentUser }: any) {
     }
   };
 
-  // Subir logo (solo guarda la ruta, no Base64)
-  const handleLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  // Subir logo y guardar ruta en la base de datos
+  const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) {
-      setCompanyData({ ...companyData, logo: `/uploads/${file.name}` });
-      // Luego tu backend debe mover el archivo a /uploads/
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("logo", file);
+
+    try {
+      // Subir imagen al backend
+      const res = await axios.post("http://localhost:5001/api/upload-logo", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+
+      // ✅ CORREGIDO: tipado en prev
+      setCompanyData((prev: typeof companyData) => ({ ...prev, logo: res.data.logo }));
+
+      alert("✅ Logo actualizado correctamente");
+      await registrarAuditoria("EDITAR", `El usuario ${currentUser} actualizó el logo de la empresa.`);
+    } catch (err) {
+      console.error("❌ Error al subir el logo:", err);
+      alert("Error al subir el logo");
     }
   };
 
@@ -108,8 +124,8 @@ export function CompanyProfile({ currentUser }: any) {
             <div className="flex flex-col items-center space-y-4">
               {companyData.logo ? (
                 <div className="relative w-40 h-40 rounded-lg border-2 border-gray-200 overflow-hidden">
-                  <ImageWithFallback
-                    src={companyData.logo}
+                  <img
+                    src={`http://localhost:5001${companyData.logo}`}
                     alt="Company Logo"
                     className="w-full h-full object-cover"
                   />

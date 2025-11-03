@@ -3,12 +3,15 @@ import mysql from "mysql2";
 import cors from "cors";
 import dotenv from "dotenv";
 import bcrypt from "bcrypt";
+import multer from "multer";
+import path from "path";
 
 dotenv.config();
 const app = express();
 
 app.use(cors());
 app.use(express.json());
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 // 🔌 Conexión a MySQL
 const db = mysql.createConnection({
@@ -449,6 +452,47 @@ app.put("/api/empresa/:id", (req, res) => {
     }
     if (result.affectedRows === 0) return res.status(404).json({ error: "Empresa no encontrada" });
     res.json({ message: "✅ Empresa actualizada correctamente" });
+  });
+});
+
+// ===============================
+// 🔹 SUBIDA DE LOGO DE EMPRESA
+// ===============================
+
+import fs from "fs";
+
+// Configurar almacenamiento para multer
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = path.join(process.cwd(), "uploads");
+    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    const fileName = `logo_empresa${ext}`;
+    cb(null, fileName);
+  },
+});
+
+const upload = multer({ storage });
+
+// Endpoint para subir el logo
+app.post("/api/upload-logo", upload.single("logo"), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: "No se subió ninguna imagen" });
+  }
+
+  // Ruta pública del logo (por ejemplo /uploads/logo_empresa.png)
+  const logoPath = `/uploads/${req.file.filename}`;
+
+  const sql = "UPDATE empresa SET logo = ? WHERE id = 1";
+  db.query(sql, [logoPath], (err, result) => {
+    if (err) {
+      console.error("❌ Error al guardar el logo:", err);
+      return res.status(500).json({ error: "Error al guardar el logo" });
+    }
+    res.json({ message: "✅ Logo actualizado correctamente", logo: logoPath });
   });
 });
 
