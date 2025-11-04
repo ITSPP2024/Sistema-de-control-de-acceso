@@ -5,13 +5,18 @@ import dotenv from "dotenv";
 import bcrypt from "bcrypt";
 import multer from "multer";
 import path from "path";
+import ttlockCallbackRouter from "./src/ttlock/callback.js";
+import { getAccessToken } from "./src/ttlock/auth.js";
+
 
 dotenv.config();
 const app = express();
 
+app.use(express.urlencoded({ extended: true })); 
 app.use(cors());
 app.use(express.json());
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
+app.use("/api/ttlock/callback", ttlockCallbackRouter);
 
 // 🔌 Conexión a MySQL
 const db = mysql.createConnection({
@@ -958,6 +963,15 @@ app.get("/api/dashboard/alerts-detail", (req, res) => {
   });
 });
 
+// ✅ Ruta temporal para probar autenticación TTLock
+app.get("/api/ttlock/test-login", async (req, res) => {
+  try {
+    const token = await getAccessToken();
+    res.json({ success: true, access_token: token });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 // 🚀 Iniciar servidor
 app.listen(process.env.PORT || 5001, () => {
   console.log(`Servidor corriendo en http://localhost:${process.env.PORT || 5001}`);
