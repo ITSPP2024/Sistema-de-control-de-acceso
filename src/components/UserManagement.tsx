@@ -293,8 +293,53 @@ export function UserManagement({ currentUser }: any) {
   );
 }
 
-// --- Componente reutilizable de formulario ---
+  // --- Vincular huella TTLock ---
 function UserForm({ user, setUser, photo, setPhoto, photoInputRef, onSave, onCancel, title }: any) {
+  const [loadingFingerprint, setLoadingFingerprint] = useState(false);
+  const [loadingCard, setLoadingCard] = useState(false);
+  const [statusFingerprint, setStatusFingerprint] = useState("");
+  const [statusCard, setStatusCard] = useState("");
+
+  // --- Vincular huella TTLock ---
+  const handleLinkFingerprint = async () => {
+    setLoadingFingerprint(true);
+    setStatusFingerprint("⏳ Buscando huella existente...");
+
+   try {
+    const response = await axios.post("http://localhost:5001/api/ttlock/linkFingerprint", {
+      correo_usuario: user.correo_usuario,
+    });
+
+setStatusFingerprint(`✅ Huella vinculada: ${response.data.fingerprint.fingerprintName} (ID ${response.data.fingerprint.fingerprintId})`);
+    } catch (error: any) {
+      console.error("Error vinculando huella:", error);
+      setStatusFingerprint(error.response?.data?.error || "⚠️ Error al vincular huella");
+    } finally {
+      setLoadingFingerprint(false);
+      setTimeout(() => setStatusFingerprint(""), 6000);
+    }
+  };
+
+  // --- Agregar tarjeta TTLock ---
+  const handleAddCard = async () => {
+    setLoadingCard(true);
+    setStatusCard("⏳ Enviando solicitud de tarjeta...");
+
+    try {
+      const response = await axios.post("http://localhost:5001/api/ttlock/addCard", {
+        correo_usuario: user.correo_usuario,
+      });
+
+      setStatusCard("✅ Solicitud enviada. Abre la app TTLock para sincronizar la cerradura.");
+    } catch (err: any) {
+      console.error("Error agregando tarjeta:", err);
+      setStatusCard(err.response?.data?.error || "⚠️ Error al enviar solicitud de tarjeta");
+    } finally {
+      setLoadingCard(false);
+      setTimeout(() => setStatusCard(""), 6000);
+    }
+  };
+  
   return (
     <>
       <DialogHeader>
@@ -380,8 +425,34 @@ function UserForm({ user, setUser, photo, setPhoto, photoInputRef, onSave, onCan
           </Select>
         </div>
 
-        {/* Botones */}
-        <div className="flex space-x-2 pt-2">
+        {/* --- Opciones TTLock --- */}
+        <div className="pt-3 border-t space-y-3">
+          <Label>Opciones de acceso TTLock</Label>
+          <div className="flex space-x-2">
+            <Button
+  variant="secondary"
+  className="flex-1"
+  onClick={handleLinkFingerprint} // ⚠️ Antes era handleAddFingerprint
+  disabled={loadingFingerprint}
+>
+  {loadingFingerprint ? "⏳ Esperando huella..." : "Agregar Huella"}
+</Button>
+
+            <Button
+              variant="secondary"
+              className="flex-1"
+              onClick={handleAddCard}
+              disabled={loadingCard}
+            >
+              {loadingCard ? "⏳ Esperando tarjeta..." : "Agregar Tarjeta"}
+            </Button>
+          </div>
+          {statusFingerprint && <p className="text-sm text-green-600">{statusFingerprint}</p>}
+          {statusCard && <p className="text-sm text-green-600">{statusCard}</p>}
+        </div>
+
+        {/* Botones finales */}
+        <div className="flex space-x-2 pt-4">
           <Button variant="outline" className="flex-1" onClick={onCancel}>Cancelar</Button>
           <Button className="flex-1" onClick={onSave}>Guardar</Button>
         </div>

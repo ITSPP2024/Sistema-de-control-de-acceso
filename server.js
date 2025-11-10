@@ -6,7 +6,9 @@ import bcrypt from "bcrypt";
 import multer from "multer";
 import path from "path";
 import ttlockCallbackRouter from "./src/ttlock/callback.js";
-import { getAccessToken } from "./src/ttlock/auth.js";
+import { ttlockLogin, refreshTTLockToken } from "./src/ttlock/auth.js";
+import { syncTTLockDevices } from "./src/ttlock/sync.js";
+import axios from "axios";
 
 
 dotenv.config();
@@ -962,16 +964,247 @@ app.get("/api/dashboard/alerts-detail", (req, res) => {
     res.json(results);
   });
 });
-
 // ✅ Ruta temporal para probar autenticación TTLock
 app.get("/api/ttlock/test-login", async (req, res) => {
   try {
-    const token = await getAccessToken();
-    res.json({ success: true, access_token: token });
+    const tokenData = await ttlockLogin(); // <-- esta función SÍ existe en auth.js
+    res.json({ success: true, data: tokenData });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
+app.get("/api/ttlock/sync-locks", async (req, res) => {
+  try {
+    const token = await getAccessToken();
+
+    const response = await axios.post(
+      `${process.env.TTLOCK_BASE_URL}/v3/lock/list`,
+      new URLSearchParams({
+        clientId: process.env.TTLOCK_CLIENT_ID,
+        accessToken: token,
+        pageNo: 1,
+        pageSize: 50,
+        date: Date.now(),
+      }),
+      { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+    );
+
+    const locks = response.data.list || [];
+    console.log(`🔐 Cerraduras encontradas: ${locks.length}`);
+
+    // Guardar en base de datos
+    const conn = await pool.getConnection();
+    try {
+      for (const lock of locks) {
+        await conn.query(
+          `INSERT INTO dispositivos 
+            (nombre_dispositivo, tipo_dispositivo, nombre_zona_dispositivo, ubicacion, Estado, lock_key, wifi_lock)
+           VALUES (?, ?, ?, ?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE
+            nombre_dispositivo = VALUES(nombre_dispositivo),
+            Estado = VALUES(Estado),
+            lock_key = VALUES(lock_key),
+            wifi_lock = VALUES(wifi_lock)`,
+          [
+            lock.lockAlias || "Cerradura TTLock",
+            "Cerradura inteligente",
+            "Sin zona",
+            "Sin ubicación",
+            "Activa",
+            lock.lockKey,
+            lock.wifiLock ? 1 : 0,
+          ]
+        );
+      }
+    } finally {
+      conn.release();
+    }
+
+    res.json({
+      success: true,
+      locks,
+    });
+  } catch (error) {
+    console.error("❌ Error sincronizando cerraduras:", error.response?.data || error.message);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+// 🧩 Ruta para sincronizar manualmente
+app.get("/api/ttlock/sync", async (req, res) => {
+  try {
+    const result = await syncTTLockDevices();
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 🚀 Sincroniza automáticamente al iniciar el servidor
+syncTTLockDevices()
+  .then(() => console.log("✅ Sincronización inicial TTLock completada."))
+  .catch((err) => console.error("⚠️ Error en sincronización inicial:", err.message));
+
+// =======================================================
+// 🧠 TTLOCK: Crear registro pendiente de Huella
+// =======================================================
+app.post("/api/ttlock/requestFingerprint", async (req, res) => {
+  const { correo_usuario, admin_email } = req.body;
+  if (!correo_usuario) return res.status(400).json({ error: "Correo del usuario requerido" });
+
+  try {
+    const [users] = await db.promise().query("SELECT * FROM usuarios WHERE correo_usuario = ?", [correo_usuario]);
+    if (users.length === 0) return res.status(404).json({ error: "Usuario no encontrado" });
+    const user = users[0];
+
+    // Guardar registro pendiente en DB
+    await db.promise().query(
+      "UPDATE usuarios SET huella_estado = ? WHERE idUsuarios = ?",
+      ["pendiente", user.idUsuarios]
+    );
+
+    // Registrar auditoría
+    await db.promise().query(
+      "INSERT INTO auditoria (correo, accion, entidad, entidad_id, detalle, fecha) VALUES (?, ?, ?, ?, ?, NOW())",
+      [
+        admin_email || "sistema@local",
+        "SOLICITAR_HUELLA",
+        "USUARIO",
+        user.idUsuarios,
+        `Solicitud de huella pendiente para ${user.nombre_usuario} ${user.apellido_usuario}`,
+      ]
+    );
+
+    res.json({
+      success: true,
+      message: "✅ Solicitud creada. Acércate a la cerradura y registra la huella con la app TTLock.",
+    });
+
+    console.log(`✅ Registro pendiente de huella creado para ${user.nombre_usuario} ${user.apellido_usuario}`);
+  } catch (error) {
+    console.error("❌ Error creando registro pendiente de huella:", error.message);
+    res.status(500).json({ error: "Error al crear registro pendiente de huella" });
+  }
+});
+
+// =======================================================
+// 🧠 TTLOCK: Sincronizar huellas registradas y actualizar DB
+// =======================================================
+// Vincular huella existente y manejar todos los datos
+app.post("/api/ttlock/linkFingerprint", async (req, res) => {
+  const { correo_usuario, admin_email } = req.body;
+  if (!correo_usuario) return res.status(400).json({ error: "Correo del usuario requerido" });
+
+  try {
+    // 1️⃣ Buscar usuario en la base de datos
+    const [users] = await db.promise().query(
+      "SELECT * FROM usuarios WHERE correo_usuario = ?",
+      [correo_usuario]
+    );
+    if (users.length === 0) return res.status(404).json({ error: "Usuario no encontrado" });
+    const user = users[0];
+
+    // 2️⃣ Obtener token TTLock
+    const tokenData = await refreshTTLockToken();
+    const accessToken = tokenData.access_token;
+
+    // 3️⃣ Listar huellas del lock
+    const params = new URLSearchParams();
+    params.append("clientId", process.env.TTLOCK_CLIENT_ID);
+    params.append("accessToken", accessToken);
+    params.append("lockId", process.env.TTLOCK_LOCK_ID);
+    params.append("pageNo", "1");
+    params.append("pageSize", "200");
+    params.append("orderBy", "0"); // Orden por nombre
+    params.append("date", Date.now().toString());
+
+    const response = await axios.get(`${process.env.TTLOCK_BASE_URL}/v3/fingerprint/list?${params.toString()}`);
+    const fingerprints = response.data.list || [];
+
+    // 4️⃣ Buscar huella que coincida con nombre + apellido
+    const matchedFingerprint = fingerprints.find(fp =>
+      fp.fingerprintName === `${user.nombre_usuario} ${user.apellido_usuario}`
+    );
+
+    if (!matchedFingerprint) {
+      return res.status(404).json({ error: "No se encontró huella con ese nombre en la cerradura" });
+    }
+
+    // 5️⃣ Guardar fingerprintId en la base de datos
+    await db.promise().query(
+      "UPDATE usuarios SET huella_usuario = ? WHERE idUsuarios = ?",
+      [matchedFingerprint.fingerprintNumber, user.idUsuarios]
+    );
+
+    // 7️⃣ Responder con toda la info de la huella
+    res.json({
+      success: true,
+      message: "✅ Huella vinculada exitosamente al usuario",
+      fingerprint: matchedFingerprint
+    });
+
+  } catch (err) {
+    console.error("❌ Error vinculando huella TTLock:", err.response?.data || err.message);
+    res.status(500).json({ error: "Error al vincular huella TTLock" });
+  }
+});
+
+// --- Agregar Tarjeta ---
+app.post("/api/ttlock/addCard", async (req, res) => {
+  const { correo_usuario, admin_email } = req.body;
+  if (!correo_usuario) return res.status(400).json({ error: "Correo del usuario requerido" });
+
+  try {
+    const [users] = await db.promise().query("SELECT * FROM usuarios WHERE correo_usuario = ?", [correo_usuario]);
+    if (users.length === 0) return res.status(404).json({ error: "Usuario no encontrado" });
+    const user = users[0];
+
+    // Token TTLock
+    const tokenData = await refreshTTLockToken();
+    const accessToken = tokenData.access_token;
+
+    // 📡 Petición TTLock
+    const params = new URLSearchParams();
+    params.append("clientId", process.env.TTLOCK_CLIENT_ID);
+    params.append("accessToken", accessToken);
+    params.append("lockId", process.env.TTLOCK_LOCK_ID);
+    params.append("startDate", Math.floor(Date.now() / 1000).toString());
+    params.append("endDate", (Math.floor(Date.now() / 1000) + 31536000).toString()); // 1 año
+    params.append("cardName", `${user.nombre_usuario} ${user.apellido_usuario}`);
+
+    const response = await axios.post(`${process.env.TTLOCK_BASE_URL}/v3/card/add`, params);
+    const data = response.data;
+
+    // Guardar ID de tarjeta y estado pendiente
+    await db.promise().query(
+      "UPDATE usuarios SET targeta_usuario = ?, tarjeta_estado = ? WHERE idUsuarios = ?",
+      [data.cardId, "pendiente", user.idUsuarios]
+    );
+
+    // Registrar auditoría
+    await db.promise().query(
+      "INSERT INTO auditoria (correo, accion, entidad, entidad_id, detalle, fecha) VALUES (?, ?, ?, ?, ?, NOW())",
+      [
+        admin_email || "sistema@local",
+        "AGREGAR_TARJETA",
+        "USUARIO",
+        user.idUsuarios,
+        `Solicitud de tarjeta enviada para ${user.nombre_usuario} ${user.apellido_usuario} (ID TTLock ${data.cardId})`,
+      ]
+    );
+
+    res.json({
+      success: true,
+      message: "✅ Solicitud enviada. Abre la app TTLock y sincroniza la cerradura para registrar la tarjeta.",
+      data,
+    });
+
+    console.log("✅ Solicitud de tarjeta enviada:", data);
+  } catch (error) {
+    console.error("❌ Error al agregar tarjeta TTLock:", error.response?.data || error.message);
+    res.status(500).json({ error: "Error al enviar solicitud de tarjeta TTLock" });
+  }
+});
+
 // 🚀 Iniciar servidor
 app.listen(process.env.PORT || 5001, () => {
   console.log(`Servidor corriendo en http://localhost:${process.env.PORT || 5001}`);
