@@ -93,7 +93,6 @@ export function CompanyProfile({ currentUser }: any) {
       // ✅ CORREGIDO: tipado en prev
       setCompanyData((prev: typeof companyData) => ({ ...prev, logo: res.data.logo }));
 
-      alert("✅ Logo actualizado correctamente");
       await registrarAuditoria("EDITAR", `El usuario ${currentUser} actualizó el logo de la empresa.`);
     } catch (err) {
       console.error("❌ Error al subir el logo:", err);
@@ -125,7 +124,7 @@ export function CompanyProfile({ currentUser }: any) {
               {companyData.logo ? (
                 <div className="relative w-40 h-40 rounded-lg border-2 border-gray-200 overflow-hidden">
                   <img
-                    src={`http://localhost:5001${companyData.logo}`}
+                    src={`http://localhost:5001${companyData.logo}?t=${Date.now()}`}
                     alt="Company Logo"
                     className="w-full h-full object-cover"
                   />

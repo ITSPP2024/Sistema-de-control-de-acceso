@@ -69,7 +69,7 @@ export default function App() {
     fetchCompanyData();
 
     // Actualizar cada 5 segundos
-    const interval = setInterval(fetchCompanyData, 5000);
+    const interval = setInterval(fetchCompanyData, 3000);
 
     // Limpiar intervalo al desmontar
     return () => clearInterval(interval);
@@ -121,7 +121,7 @@ export default function App() {
             {/* 👇 Mostrar logo si existe, de lo contrario el ícono Shield */}
             {companyData.logo ? (
               <img
-                src={`http://localhost:5001${companyData.logo}`}
+                src={`http://localhost:5001${companyData.logo}?t=${Date.now()}`}
                 alt="Logo Empresa"
                 className="w-10 h-10 rounded-md object-cover"
               />
