@@ -2,247 +2,264 @@ import { useState, useEffect } from "react";
 import { Card } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
-import { Alert, AlertDescription } from "./ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
-import { AlertTriangle, Shield, Eye, CheckCircle, Clock, Bell } from "lucide-react";
+import { FileSpreadsheet, Calendar, Filter } from "lucide-react";
 
-interface AlertItem {
-  idAlerta: number;
-  timestamp: string; // fecha_inicio
-  type: string; // tipo_alerta
-  severity: string; // severidad
-  zone: string; // zona
-  details: string; // detalles_alerta
-  status: string; // estado
-  user: string; // usuario
+// Tipo para los registros de auditoría (incluye nombres)
+interface AuditoriaRecord {
+  id: number;
+  usuario_id: number;
+  Nombre_Administrador?: string;
+  Apellido_Administrador?: string;
+  accion: string;
+  entidad: string;
+  entidad_id: number | null;
+  detalle: string | null;
+  fecha: string;
 }
 
 export function SecurityAlerts() {
-  const [alerts, setAlerts] = useState<AlertItem[]>([]);
-  const [severityFilter, setSeverityFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [auditoria, setAuditoria] = useState<AuditoriaRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [accionFilter, setAccionFilter] = useState("all");
+  const [entidadFilter, setEntidadFilter] = useState("all");
 
-  // 🔹 Traer alertas desde la API
+  // 🔵 Función formateadora de fechas
+  const formatFecha = (fechaString: string) => {
+    const fecha = new Date(fechaString);
+    const fechaPart = fecha.toISOString().split("T")[0]; // YYYY-MM-DD
+    const horaPart = fecha.toTimeString().split(" ")[0]; // HH:MM:SS
+    return `${fechaPart}   ${horaPart}`; // ← Separación extra
+  };
+
+  // 🔵 Cargar datos reales desde el backend
+  const loadAuditoriaRecords = async () => {
+    try {
+      setLoading(true);
+
+      const response = await fetch("http://localhost:5001/api/auditoria");
+      const data = await response.json();
+
+      setAuditoria(Array.isArray(data) ? data : []);
+      setLoading(false);
+    } catch (error) {
+      console.error("Error loading auditoria records:", error);
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    fetch("http://localhost:5001/api/alertas")
-      .then(res => res.json())
-      .then(data => {
-        const mapped = data.map((a: any) => ({
-          idAlerta: a.idAlerta,
-          timestamp: a.fecha_inicio,
-          type: a.tipo_alerta,
-          severity: a.severidad,
-          zone: a.zona,
-          details: a.detalles_alerta,
-          status: a.estado,
-          user: a.usuario || "Usuario Desconocido"
-        }));
-        setAlerts(mapped);
-      })
-      .catch(err => console.error("Error al obtener alertas:", err));
+    loadAuditoriaRecords();
   }, []);
 
-  const filteredAlerts = alerts.filter(alert => {
-    const matchesSeverity = severityFilter === "all" || alert.severity.toLowerCase() === severityFilter;
-    const matchesStatus = statusFilter === "all" || alert.status.toLowerCase() === statusFilter;
-    return matchesSeverity && matchesStatus;
+  // Filtrar registros
+  const filteredAuditoria = auditoria.filter(record => {
+    const matchesAccion = accionFilter === "all" || record.accion === accionFilter;
+    const matchesEntidad = entidadFilter === "all" || record.entidad === entidadFilter;
+    return matchesAccion && matchesEntidad;
   });
 
-  const getSeverityColor = (severity: string) => {
-    switch (severity) {
-      case "Crítico": return "destructive";
-      case "Alto": return "destructive";
-      case "Medio": return "default";
-      case "Bajo": return "secondary";
-      default: return "default";
+  // Valores únicos para filtros
+  const uniqueAcciones = Array.from(new Set(auditoria.map(r => r.accion))).sort();
+  const uniqueEntidades = Array.from(new Set(auditoria.map(r => r.entidad))).sort();
+
+  // Exportar CSV
+  const exportToExcel = () => {
+    const headers = ["ID", "Usuario", "Acción", "Entidad", "Entidad ID", "Detalle", "Fecha"];
+    const csvContent = [
+      headers.join(","),
+      ...filteredAuditoria.map(record => [
+        record.id,
+        record.Nombre_Administrador
+          ? `${record.Nombre_Administrador} ${record.Apellido_Administrador}`
+          : `ID ${record.usuario_id}`,
+        record.accion,
+        record.entidad,
+        record.entidad_id || "",
+        `"${(record.detalle || "").replace(/"/g, '""')}"`,
+        formatFecha(record.fecha)
+      ].join(","))
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = `auditoria_${new Date().toISOString().split("T")[0]}.csv`;
+    link.click();
+  };
+
+  // Color del badge según acción
+  const getAccionColor = (accion: string) => {
+    switch (accion) {
+      case "CREAR": return "default";
+      case "EDITAR": return "secondary";
+      case "ACTUALIZAR": return "secondary";
+      case "ELIMINAR": return "destructive";
+      case "MOVER": return "outline";
+      default: return "outline";
     }
   };
 
-  const getSeverityIcon = (severity: string) => {
-    switch (severity) {
-      case "Crítico": return <AlertTriangle className="w-4 h-4 text-red-600" />;
-      case "Alto": return <AlertTriangle className="w-4 h-4 text-red-500" />;
-      case "Medio": return <Shield className="w-4 h-4 text-yellow-500" />;
-      case "Bajo": return <Eye className="w-4 h-4 text-blue-500" />;
-      default: return <Bell className="w-4 h-4" />;
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "Pendiente": return "destructive";
-      case "En Revisión": return "default";
-      case "Resuelto": return "secondary";
-      default: return "default";
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case "Pendiente": return <Clock className="w-4 h-4 text-red-500" />;
-      case "En Revisión": return <Eye className="w-4 h-4 text-blue-500" />;
-      case "Resuelto": return <CheckCircle className="w-4 h-4 text-green-500" />;
-      default: return <Bell className="w-4 h-4" />;
-    }
-  };
-
-  const handleMarkAsResolved = (alertId: number) => {
-    fetch(`http://localhost:5001/api/alertas/${alertId}/resolver`, { method: "PUT" })
-      .then(res => {
-        if (!res.ok) throw new Error("No se pudo resolver la alerta");
-        setAlerts(alerts.map(alert =>
-          alert.idAlerta === alertId ? { ...alert, status: "Resuelto" } : alert
-        ));
-      })
-      .catch(err => console.error(err));
-  };
-
-  const pendingAlerts = filteredAlerts.filter(alert => alert.status === "Pendiente");
-  const criticalAlerts = filteredAlerts.filter(alert => alert.severity === "Crítico");
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-muted-foreground">Cargando registros de auditoría...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2>Alertas de Seguridad</h2>
+          <h2>Registro de Auditoría</h2>
           <p className="text-muted-foreground">
-            Monitoreo y gestión de incidentes de seguridad
+            Historial completo de actividades del sistema
           </p>
         </div>
-        <Button variant="outline">
-          <Bell className="w-4 h-4 mr-2" />
-          Configurar Notificaciones
+        <Button onClick={exportToExcel} variant="outline">
+          <FileSpreadsheet className="w-4 h-4 mr-2" />
+          Exportar a Excel
         </Button>
       </div>
 
-      {criticalAlerts.length > 0 && (
-        <Alert className="border-red-200 bg-red-50">
-          <AlertTriangle className="h-4 w-4 text-red-600" />
-          <AlertDescription className="text-red-800">
-            <strong>¡Atención!</strong> Hay {criticalAlerts.length} alerta(s) crítica(s) que requieren atención inmediata.
-          </AlertDescription>
-        </Alert>
-      )}
-
+      {/* Estadísticas */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="p-4">
           <div className="flex items-center space-x-2">
-            <AlertTriangle className="w-5 h-5 text-red-600" />
+            <Calendar className="w-5 h-5 text-blue-600" />
             <div>
-              <div className="text-2xl font-semibold">{pendingAlerts.length}</div>
-              <div className="text-sm text-muted-foreground">Pendientes</div>
+              <div className="text-2xl font-semibold">{filteredAuditoria.length}</div>
+              <div className="text-sm text-muted-foreground">Total Registros</div>
             </div>
           </div>
         </Card>
         <Card className="p-4">
           <div className="flex items-center space-x-2">
-            <AlertTriangle className="w-5 h-5 text-red-500" />
-            <div>
-              <div className="text-2xl font-semibold">{criticalAlerts.length}</div>
-              <div className="text-sm text-muted-foreground">Críticas</div>
-            </div>
-          </div>
-        </Card>
-        <Card className="p-4">
-          <div className="flex items-center space-x-2">
-            <Eye className="w-5 h-5 text-blue-500" />
+            <Filter className="w-5 h-5 text-green-600" />
             <div>
               <div className="text-2xl font-semibold">
-                {filteredAlerts.filter(a => a.status === "En Revisión").length}
+                {auditoria.filter(r => r.accion === "CREAR").length}
               </div>
-              <div className="text-sm text-muted-foreground">En Revisión</div>
+              <div className="text-sm text-muted-foreground">Creaciones</div>
             </div>
           </div>
         </Card>
         <Card className="p-4">
           <div className="flex items-center space-x-2">
-            <CheckCircle className="w-5 h-5 text-green-500" />
+            <Filter className="w-5 h-5 text-yellow-600" />
             <div>
               <div className="text-2xl font-semibold">
-                {filteredAlerts.filter(a => a.status === "Resuelto").length}
+                {auditoria.filter(r => r.accion === "EDITAR" || r.accion === "ACTUALIZAR").length}
               </div>
-              <div className="text-sm text-muted-foreground">Resueltas</div>
+              <div className="text-sm text-muted-foreground">Modificaciones</div>
+            </div>
+          </div>
+        </Card>
+        <Card className="p-4">
+          <div className="flex items-center space-x-2">
+            <Filter className="w-5 h-5 text-red-600" />
+            <div>
+              <div className="text-2xl font-semibold">
+                {auditoria.filter(r => r.accion === "ELIMINAR").length}
+              </div>
+              <div className="text-sm text-muted-foreground">Eliminaciones</div>
             </div>
           </div>
         </Card>
       </div>
 
       <Card className="p-6">
+        {/* Filtros */}
         <div className="flex space-x-4 mb-6">
-          <Select value={severityFilter} onValueChange={setSeverityFilter}>
+          <Select value={accionFilter} onValueChange={setAccionFilter}>
             <SelectTrigger className="w-48">
-              <SelectValue placeholder="Filtrar por severidad" />
+              <SelectValue placeholder="Filtrar por acción" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todas las severidades</SelectItem>
-              <SelectItem value="crítico">Crítico</SelectItem>
-              <SelectItem value="alto">Alto</SelectItem>
-              <SelectItem value="medio">Medio</SelectItem>
-              <SelectItem value="bajo">Bajo</SelectItem>
+              <SelectItem value="all">Todas las acciones</SelectItem>
+              {uniqueAcciones.map(accion => (
+                <SelectItem key={accion} value={accion}>{accion}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
 
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <Select value={entidadFilter} onValueChange={setEntidadFilter}>
             <SelectTrigger className="w-48">
-              <SelectValue placeholder="Filtrar por estado" />
+              <SelectValue placeholder="Filtrar por entidad" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todos los estados</SelectItem>
-              <SelectItem value="pendiente">Pendiente</SelectItem>
-              <SelectItem value="en revisión">En Revisión</SelectItem>
-              <SelectItem value="resuelto">Resuelto</SelectItem>
+              <SelectItem value="all">Todas las entidades</SelectItem>
+              {uniqueEntidades.map(entidad => (
+                <SelectItem key={entidad} value={entidad}>{entidad}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
 
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Fecha y Hora</TableHead>
-              <TableHead>Tipo de Alerta</TableHead>
-              <TableHead>Severidad</TableHead>
-              <TableHead>Zona</TableHead>
-              <TableHead>Detalles</TableHead>
-              <TableHead>Estado</TableHead>
-              <TableHead>Acciones</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredAlerts.map((alert) => (
-              <TableRow key={alert.idAlerta}>
-                <TableCell className="font-mono text-sm">{alert.timestamp}</TableCell>
-                <TableCell>
-                  <div className="flex items-center space-x-2">
-                    {getSeverityIcon(alert.severity)}
-                    <span>{alert.type}</span>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <Badge variant={getSeverityColor(alert.severity)}>{alert.severity}</Badge>
-                </TableCell>
-                <TableCell>{alert.zone}</TableCell>
-                <TableCell className="max-w-xs truncate" title={alert.details}>{alert.details}</TableCell>
-                <TableCell>
-                  <div className="flex items-center space-x-2">
-                    {getStatusIcon(alert.status)}
-                    <Badge variant={getStatusColor(alert.status)}>{alert.status}</Badge>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <div className="flex space-x-2">
-                    {alert.status === "Pendiente" && (
-                      <Button size="sm" variant="outline" onClick={() => handleMarkAsResolved(alert.idAlerta)}>
-                        Resolver
-                      </Button>
-                    )}
-                    <Button size="sm" variant="outline">Ver Detalles</Button>
-                  </div>
-                </TableCell>
+        {/* Tabla */}
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[80px]">ID</TableHead>
+                <TableHead className="w-[180px]">Usuario</TableHead>
+                <TableHead className="w-[120px]">Acción</TableHead>
+                <TableHead className="w-[120px]">Entidad</TableHead>
+                <TableHead className="w-[100px]">Entidad ID</TableHead>
+                <TableHead>Detalle</TableHead>
+                <TableHead className="w-[180px]">Fecha</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {filteredAuditoria.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center text-muted-foreground">
+                    No hay registros de auditoría
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredAuditoria.map((record) => (
+                  <TableRow key={record.id}>
+                    <TableCell className="font-mono text-sm">{record.id}</TableCell>
+
+                    {/* Usuario */}
+                    <TableCell className="font-medium">
+                      {record.Nombre_Administrador
+                        ? `${record.Nombre_Administrador} ${record.Apellido_Administrador}`
+                        : `ID ${record.usuario_id}`}
+                    </TableCell>
+
+                    <TableCell>
+                      <Badge variant={getAccionColor(record.accion)}>
+                        {record.accion}
+                      </Badge>
+                    </TableCell>
+
+                    <TableCell>
+                      <Badge variant="outline">{record.entidad}</Badge>
+                    </TableCell>
+
+                    <TableCell className="font-mono text-sm">
+                      {record.entidad_id || "-"}
+                    </TableCell>
+
+                    <TableCell className="max-w-md" title={record.detalle || ""}>
+                      {record.detalle || "-"}
+                    </TableCell>
+
+                    <TableCell className="font-mono text-sm">
+                      {formatFecha(record.fecha)}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </Card>
     </div>
   );
