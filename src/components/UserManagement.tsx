@@ -1,3 +1,4 @@
+// UserManagement.tsx
 import { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { Card } from "./ui/card";
@@ -11,16 +12,32 @@ import { Label } from "./ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Plus, Edit, Trash2, Camera } from "lucide-react";
 
-export function UserManagement({ currentUser }: any) {
-  const [users, setUsers] = useState<any[]>([]);
+type User = {
+  idUsuarios: number;
+  nombre_usuario: string;
+  apellido_usuario: string;
+  correo_usuario?: string;
+  telefono_usuario?: string;
+  cargo_usuario?: string;
+  nivel_acceso?: number | string;
+  targeta_usuario?: string | null;
+  huella_usuario?: string | null;
+  foto?: string | null;
+  status?: string | null;
+  lastAccess?: string | null;
+};
+
+export function UserManagement({ currentUser }: { currentUser: string | null }) {
+  const [users, setUsers] = useState<User[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [editingUser, setEditingUser] = useState<any | null>(null);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
   const [newUserPhoto, setNewUserPhoto] = useState<string | null>(null);
   const newUserPhotoInputRef = useRef<HTMLInputElement>(null);
   const editUserPhotoInputRef = useRef<HTMLInputElement>(null);
-  const [newUser, setNewUser] = useState({
+
+  const [newUser, setNewUser] = useState<Partial<User>>({
     nombre_usuario: "",
     apellido_usuario: "",
     correo_usuario: "",
@@ -28,47 +45,38 @@ export function UserManagement({ currentUser }: any) {
     cargo_usuario: "",
     nivel_acceso: "",
     targeta_usuario: "",
-    photo: null
+    foto: null
   });
 
-  // --- Cargar usuarios ---
-  const fetchUsers = () => {
-    axios.get("http://localhost:5001/api/usuarios")
-      .then(res => setUsers(res.data))
-      .catch(err => console.error("Error al cargar usuarios:", err));
+  // carga usuarios
+  const fetchUsers = async () => {
+    try {
+      const res = await axios.get<User[]>("http://localhost:5001/api/usuarios");
+      setUsers(res.data || []);
+    } catch (err) {
+      console.error("Error al cargar usuarios:", err);
+    }
   };
 
   useEffect(() => {
     fetchUsers();
   }, []);
 
-  // --- Filtrar usuarios ---
   const filteredUsers = users.filter(user =>
     (`${user.nombre_usuario} ${user.apellido_usuario}`.toLowerCase().includes(searchTerm.toLowerCase())) ||
     (user.correo_usuario?.toLowerCase().includes(searchTerm.toLowerCase())) ||
     (user.cargo_usuario?.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  const getAccessLevelColor = (level: string) => {
-    switch (level) {
-      case "5": return "destructive";
-      case "3": return "default";
-      case "1": return "secondary";
-      default: return "default";
-    }
-  };
-
-  const getStatusColor = (status: string) => status === "Activo" ? "default" : "secondary";
-
   const getInitials = (name: string) =>
     name?.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2) || "NA";
 
-  // --- Registrar auditoría ---
+  // registrar auditoría (usa tu endpoint existente)
   const registrarAuditoria = async (accion: string, entidad: string, entidad_id: any, detalle: string) => {
     if (!currentUser) return;
     try {
       await axios.post("http://localhost:5001/api/auditoria", {
-        correo: currentUser,  // 👈 el mismo email que ves en App.tsx
+        correo: currentUser,
         accion,
         entidad,
         entidad_id,
@@ -79,7 +87,7 @@ export function UserManagement({ currentUser }: any) {
     }
   };
 
-  // --- Crear usuario ---
+  // Crear usuario
   const handleCreateUser = async () => {
     if (!newUser.nombre_usuario || !newUser.apellido_usuario || !newUser.correo_usuario) {
       alert("Completa todos los campos obligatorios.");
@@ -91,7 +99,7 @@ export function UserManagement({ currentUser }: any) {
     }
     try {
       const res = await axios.post("http://localhost:5001/api/usuarios", newUser);
-      fetchUsers();
+      await fetchUsers();
       setIsAddDialogOpen(false);
       setNewUserPhoto(null);
       setNewUser({
@@ -102,7 +110,7 @@ export function UserManagement({ currentUser }: any) {
         cargo_usuario: "",
         nivel_acceso: "",
         targeta_usuario: "",
-        photo: null
+        foto: null
       });
       await registrarAuditoria(
         "CREAR",
@@ -115,8 +123,8 @@ export function UserManagement({ currentUser }: any) {
     }
   };
 
-  // --- Editar usuario ---
-  const handleEditClick = (user: any) => {
+  // Editar usuario
+  const handleEditClick = (user: User) => {
     setEditingUser({ ...user });
     setIsEditDialogOpen(true);
   };
@@ -125,27 +133,27 @@ export function UserManagement({ currentUser }: any) {
     if (editingUser) {
       try {
         await axios.put(`http://localhost:5001/api/usuarios/${editingUser.idUsuarios}`, editingUser);
-        fetchUsers();
+        await fetchUsers();
         setIsEditDialogOpen(false);
-        setEditingUser(null);
         await registrarAuditoria(
           "EDITAR",
           "USUARIO",
           editingUser.idUsuarios,
           `Usuario ${editingUser.nombre_usuario} ${editingUser.apellido_usuario} modificado`
         );
+        setEditingUser(null);
       } catch (err) {
         console.error("Error editando usuario:", err);
       }
     }
   };
 
-  // --- Eliminar usuario ---
-  const handleDeleteUser = async (id: string) => {
+  // Eliminar usuario
+  const handleDeleteUser = async (id: number) => {
     if (confirm("¿Deseas eliminar este usuario?")) {
       try {
         await axios.delete(`http://localhost:5001/api/usuarios/${id}`);
-        fetchUsers();
+        await fetchUsers();
         await registrarAuditoria(
           "ELIMINAR",
           "USUARIO",
@@ -158,8 +166,8 @@ export function UserManagement({ currentUser }: any) {
     }
   };
 
-  // --- Subir fotos ---
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>, setPhoto: Function) => {
+  // photo upload helper
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>, setPhoto: (p:string|null)=>void) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
@@ -170,7 +178,6 @@ export function UserManagement({ currentUser }: any) {
 
   return (
     <div className="space-y-6">
-      {/* Header y botón agregar */}
       <div className="flex items-center justify-between">
         <div>
           <h2>Gestión de Usuarios</h2>
@@ -187,19 +194,19 @@ export function UserManagement({ currentUser }: any) {
           <DialogContent className="max-w-md">
             <UserForm
               user={newUser}
-              setUser={setNewUser}
+              setUser={(u: any) => setNewUser(u)}
               photo={newUserPhoto}
               setPhoto={setNewUserPhoto}
               photoInputRef={newUserPhotoInputRef}
               onSave={handleCreateUser}
               onCancel={() => { setIsAddDialogOpen(false); setNewUserPhoto(null); }}
               title="Agregar Nuevo Usuario"
+              onLinkedSuccessfully={() => fetchUsers()}
             />
           </DialogContent>
         </Dialog>
       </div>
 
-      {/* Tabla de usuarios */}
       <Card className="p-6">
         <div className="mb-4">
           <Input
@@ -214,8 +221,9 @@ export function UserManagement({ currentUser }: any) {
           <TableHeader>
             <TableRow>
               <TableHead>Usuario</TableHead>
-              <TableHead>Zona</TableHead>
+              <TableHead>Cargo</TableHead>
               <TableHead>Tarjeta RFID</TableHead>
+              <TableHead>Huella</TableHead>
               <TableHead>Estado</TableHead>
               <TableHead>Último Acceso</TableHead>
               <TableHead>Acciones</TableHead>
@@ -227,8 +235,8 @@ export function UserManagement({ currentUser }: any) {
                 <TableCell>
                   <div className="flex items-center space-x-3">
                     <Avatar>
-                      {user.photo ? (
-                        <AvatarImage src={user.photo} alt={`${user.nombre_usuario} ${user.apellido_usuario}`} />
+                      {user.foto ? (
+                        <AvatarImage src={user.foto} alt={`${user.nombre_usuario} ${user.apellido_usuario}`} />
                       ) : (
                         <AvatarFallback className="bg-blue-100 text-blue-600">
                           {getInitials(`${user.nombre_usuario} ${user.apellido_usuario}`)}
@@ -241,12 +249,20 @@ export function UserManagement({ currentUser }: any) {
                     </div>
                   </div>
                 </TableCell>
-                <TableCell>{user.cargo_usuario || "Sin zona"}</TableCell>
+                <TableCell>{user.cargo_usuario || user.zona_usuario || "Sin zona"}</TableCell>
                 <TableCell>
                   <code className="bg-gray-100 px-2 py-1 rounded text-sm">{user.targeta_usuario || "N/A"}</code>
                 </TableCell>
                 <TableCell>
-                  <Badge variant={getStatusColor(user.status || "Activo")}>{user.status || "Activo"}</Badge>
+                  <div className="flex items-center space-x-2">
+                    <span className="font-mono text-sm">{user.huella_usuario || "No"}</span>
+                    {user.huella_usuario ? <Badge>Vinculada</Badge> : <Badge variant="secondary">Sin huella</Badge>}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <Badge variant={user.status === "Inactivo" ? "secondary" : "default"}>
+                    {user.status || "Activo"}
+                  </Badge>
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground">{user.lastAccess || "-"}</TableCell>
                 <TableCell>
@@ -265,27 +281,18 @@ export function UserManagement({ currentUser }: any) {
         </Table>
       </Card>
 
-      {/* Dialog editar usuario */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="max-w-md">
           <UserForm
-            user={editingUser || {
-              nombre_usuario: "",
-              apellido_usuario: "",
-              correo_usuario: "",
-              telefono_usuario: "",
-              cargo_usuario: "",
-              nivel_acceso: "",
-              targeta_usuario: "",
-              photo: null
-            }}
-            setUser={setEditingUser}
-            photo={(editingUser && editingUser.photo) || null}
-            setPhoto={(photo) => editingUser && setEditingUser({ ...editingUser, photo })}
+            user={editingUser || ({} as any)}
+            setUser={(u:any)=> setEditingUser(u)}
+            photo={(editingUser && (editingUser.foto as any)) || null}
+            setPhoto={(photo:string|null) => editingUser && setEditingUser({ ...editingUser, foto: photo })}
             photoInputRef={editUserPhotoInputRef}
             onSave={handleSaveEdit}
             onCancel={() => { setIsEditDialogOpen(false); setEditingUser(null); }}
             title="Editar Usuario"
+            onLinkedSuccessfully={() => fetchUsers()}
           />
         </DialogContent>
       </Dialog>
@@ -293,44 +300,121 @@ export function UserManagement({ currentUser }: any) {
   );
 }
 
-  // --- Vincular huella TTLock ---
-function UserForm({ user, setUser, photo, setPhoto, photoInputRef, onSave, onCancel, title }: any) {
+
+function UserForm({ user, setUser, photo, setPhoto, photoInputRef, onSave, onCancel, title, onLinkedSuccessfully }: any) {
   const [loadingFingerprint, setLoadingFingerprint] = useState(false);
   const [loadingCard, setLoadingCard] = useState(false);
-  const [statusFingerprint, setStatusFingerprint] = useState("");
-  const [statusCard, setStatusCard] = useState("");
+  const [statusFingerprint, setStatusFingerprint] = useState<string>("");
+  const [statusCard, setStatusCard] = useState<string>("");
 
-  // --- Vincular huella TTLock ---
+  // Polling control
+  const pollingRef = useRef<number | null>(null);
+  const pollingTimeoutRef = useRef<number | null>(null);
+
+  // Inicia el proceso: pide al server crear registro pendiente y luego comienza polling a linkFingerprint
   const handleLinkFingerprint = async () => {
+    if (!user?.correo_usuario) {
+      alert("El usuario debe tener un correo para asociar la huella.");
+      return;
+    }
+
     setLoadingFingerprint(true);
-    setStatusFingerprint("⏳ Buscando huella existente...");
+    setStatusFingerprint("⏳ Solicitud enviada: acércate a la cerradura y registre la huella...");
 
-   try {
-    const response = await axios.post("http://localhost:5001/api/ttlock/linkFingerprint", {
-      correo_usuario: user.correo_usuario,
-    });
+    try {
+      // 1) marcar pendiente (puede ser opcional, pero mantiene el flujo)
+      await axios.post("http://localhost:5001/api/ttlock/requestFingerprint", {
+        correo_usuario: user.correo_usuario,
+        admin_email: undefined // opcional
+      });
 
-setStatusFingerprint(`✅ Huella vinculada: ${response.data.fingerprint.fingerprintName} (ID ${response.data.fingerprint.fingerprintId})`);
+      // 2) comenzar polling a linkFingerprint cada 3s
+      let attempts = 0;
+      const maxAttempts = 40; // 40*3s = ~2 minutos antes de timeout
+      pollingRef.current = window.setInterval(async () => {
+        attempts++;
+        try {
+          const resp = await axios.post("http://localhost:5001/api/ttlock/linkFingerprint", {
+            correo_usuario: user.correo_usuario
+          });
+
+          // si llega aquí, la huella fue encontrada y enlazada
+          const fingerprint = resp.data.fingerprint;
+          setStatusFingerprint(`✅ Huella vinculada: ${fingerprint.fingerprintName} (fingerNumber ${fingerprint.fingerprintNumber})`);
+          clearPolling();
+          // refrescar usuarios (callback)
+          onLinkedSuccessfully && onLinkedSuccessfully();
+          // registrar auditoría: servidor linkFingerprint no registra auditoría (si quieres que lo haga en backend, ok), aquí intentamos notificar al backend:
+          try {
+            await axios.post("http://localhost:5001/api/auditoria", {
+              correo: (window as any).currentUser || "sistema@local", // si usas contexto, reemplazar
+              accion: "VINCULAR_HUELLA",
+              entidad: "USUARIO",
+              entidad_id: resp.data.userId || null,
+              detalle: `Huella ${fingerprint.fingerprintNumber} vinculada a ${user.nombre_usuario} ${user.apellido_usuario}`
+            });
+          } catch (e) {
+            // no crítico si falla
+          }
+        } catch (err: any) {
+          // 404 esperado mientras no exista la huella todavía → seguimos poll
+          if (err.response && err.response.status === 404) {
+            setStatusFingerprint(`⏳ Esperando huella... (${attempts}/${maxAttempts})`);
+          } else {
+            // error no esperado, lo mostramos pero seguimos intentando hasta maxAttempts
+            console.warn("Error al checar huella:", err.response?.data || err.message);
+            setStatusFingerprint(`⚠️ Error comprobando huella (intento ${attempts})`);
+          }
+        }
+
+        if (attempts >= maxAttempts) {
+          setStatusFingerprint("❌ Timeout: no se detectó huella. Intenta de nuevo.");
+          clearPolling();
+        }
+      }, 3000);
+
+      // timeout de seguridad (por si setInterval falla)
+      pollingTimeoutRef.current = window.setTimeout(() => {
+        setStatusFingerprint("❌ Timeout (2 min). Intenta de nuevo.");
+        clearPolling();
+      }, 2 * 60 * 1000 + 5000);
     } catch (error: any) {
-      console.error("Error vinculando huella:", error);
-      setStatusFingerprint(error.response?.data?.error || "⚠️ Error al vincular huella");
-    } finally {
+      console.error("Error iniciando solicitud de huella:", error);
+      setStatusFingerprint(error.response?.data?.error || "⚠️ Error al iniciar solicitud de huella");
       setLoadingFingerprint(false);
-      setTimeout(() => setStatusFingerprint(""), 6000);
+      clearPolling();
     }
   };
 
-  // --- Agregar tarjeta TTLock ---
+  const clearPolling = () => {
+    if (pollingRef.current) {
+      window.clearInterval(pollingRef.current);
+      pollingRef.current = null;
+    }
+    if (pollingTimeoutRef.current) {
+      window.clearTimeout(pollingTimeoutRef.current);
+      pollingTimeoutRef.current = null;
+    }
+    setLoadingFingerprint(false);
+    // limpiar estado después de unos segundos para no saturar la UI
+    setTimeout(() => setStatusFingerprint(""), 8000);
+  };
+
+  // agregar tarjeta (igual que ya tenías)
   const handleAddCard = async () => {
+    if (!user?.correo_usuario) {
+      alert("El usuario debe tener un correo para solicitar tarjeta.");
+      return;
+    }
     setLoadingCard(true);
     setStatusCard("⏳ Enviando solicitud de tarjeta...");
-
     try {
       const response = await axios.post("http://localhost:5001/api/ttlock/addCard", {
-        correo_usuario: user.correo_usuario,
+        correo_usuario: user.correo_usuario
       });
-
       setStatusCard("✅ Solicitud enviada. Abre la app TTLock para sincronizar la cerradura.");
+      // opcional: refrescar usuarios (si se actualizó DB)
+      onLinkedSuccessfully && onLinkedSuccessfully();
     } catch (err: any) {
       console.error("Error agregando tarjeta:", err);
       setStatusCard(err.response?.data?.error || "⚠️ Error al enviar solicitud de tarjeta");
@@ -339,7 +423,13 @@ setStatusFingerprint(`✅ Huella vinculada: ${response.data.fingerprint.fingerpr
       setTimeout(() => setStatusCard(""), 6000);
     }
   };
-  
+
+  // limpieza si se cierra modal
+  useEffect(() => {
+    return () => clearPolling();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <>
       <DialogHeader>
@@ -347,7 +437,6 @@ setStatusFingerprint(`✅ Huella vinculada: ${response.data.fingerprint.fingerpr
       </DialogHeader>
 
       <div className="space-y-4">
-        {/* Foto */}
         <div className="flex flex-col items-center space-y-3">
           <Avatar className="w-24 h-24">
             {photo ? (
@@ -358,6 +447,7 @@ setStatusFingerprint(`✅ Huella vinculada: ${response.data.fingerprint.fingerpr
               </AvatarFallback>
             )}
           </Avatar>
+
           <input
             ref={photoInputRef}
             type="file"
@@ -378,26 +468,29 @@ setStatusFingerprint(`✅ Huella vinculada: ${response.data.fingerprint.fingerpr
           </Button>
         </div>
 
-        {/* Campos */}
         <div className="space-y-2">
           <Label>Nombre</Label>
-          <Input value={user.nombre_usuario} onChange={(e) => setUser({ ...user, nombre_usuario: e.target.value })} />
+          <Input value={user.nombre_usuario || ""} onChange={(e) => setUser({ ...user, nombre_usuario: e.target.value })} />
         </div>
+
         <div className="space-y-2">
           <Label>Apellido</Label>
-          <Input value={user.apellido_usuario} onChange={(e) => setUser({ ...user, apellido_usuario: e.target.value })} />
+          <Input value={user.apellido_usuario || ""} onChange={(e) => setUser({ ...user, apellido_usuario: e.target.value })} />
         </div>
+
         <div className="space-y-2">
           <Label>Correo</Label>
-          <Input value={user.correo_usuario} onChange={(e) => setUser({ ...user, correo_usuario: e.target.value })} />
+          <Input value={user.correo_usuario || ""} onChange={(e) => setUser({ ...user, correo_usuario: e.target.value })} />
         </div>
+
         <div className="space-y-2">
           <Label>Teléfono</Label>
-          <Input value={user.telefono_usuario} onChange={(e) => setUser({ ...user, telefono_usuario: e.target.value })} />
+          <Input value={user.telefono_usuario || ""} onChange={(e) => setUser({ ...user, telefono_usuario: e.target.value })} />
         </div>
+
         <div className="space-y-2">
           <Label>Cargo</Label>
-          <Select value={user.cargo_usuario} onValueChange={(val) => setUser({ ...user, cargo_usuario: val })}>
+          <Select value={user.cargo_usuario || ""} onValueChange={(val) => setUser({ ...user, cargo_usuario: val })}>
             <SelectTrigger>
               <SelectValue placeholder="Seleccionar cargo" />
             </SelectTrigger>
@@ -409,9 +502,10 @@ setStatusFingerprint(`✅ Huella vinculada: ${response.data.fingerprint.fingerpr
             </SelectContent>
           </Select>
         </div>
+
         <div className="space-y-2">
           <Label>Nivel de Acceso (1 a 5)</Label>
-          <Select value={user.nivel_acceso} onValueChange={(val) => setUser({ ...user, nivel_acceso: val })}>
+          <Select value={String(user.nivel_acceso || "")} onValueChange={(val) => setUser({ ...user, nivel_acceso: val })}>
             <SelectTrigger>
               <SelectValue placeholder="Seleccionar nivel" />
             </SelectTrigger>
@@ -425,18 +519,17 @@ setStatusFingerprint(`✅ Huella vinculada: ${response.data.fingerprint.fingerpr
           </Select>
         </div>
 
-        {/* --- Opciones TTLock --- */}
         <div className="pt-3 border-t space-y-3">
           <Label>Opciones de acceso TTLock</Label>
           <div className="flex space-x-2">
             <Button
-  variant="secondary"
-  className="flex-1"
-  onClick={handleLinkFingerprint} // ⚠️ Antes era handleAddFingerprint
-  disabled={loadingFingerprint}
->
-  {loadingFingerprint ? "⏳ Esperando huella..." : "Agregar Huella"}
-</Button>
+              variant="secondary"
+              className="flex-1"
+              onClick={handleLinkFingerprint}
+              disabled={loadingFingerprint}
+            >
+              {loadingFingerprint ? "⏳ Esperando huella..." : "Agregar Huella"}
+            </Button>
 
             <Button
               variant="secondary"
@@ -451,12 +544,24 @@ setStatusFingerprint(`✅ Huella vinculada: ${response.data.fingerprint.fingerpr
           {statusCard && <p className="text-sm text-green-600">{statusCard}</p>}
         </div>
 
-        {/* Botones finales */}
         <div className="flex space-x-2 pt-4">
-          <Button variant="outline" className="flex-1" onClick={onCancel}>Cancelar</Button>
+          <Button variant="outline" className="flex-1" onClick={() => { clearAllPolls(); onCancel(); }}>Cancelar</Button>
           <Button className="flex-1" onClick={onSave}>Guardar</Button>
         </div>
       </div>
     </>
   );
+
+  // helpers local
+  function clearAllPolls() {
+    if (pollingRef.current) {
+      window.clearInterval(pollingRef.current);
+      pollingRef.current = null;
+    }
+    if (pollingTimeoutRef.current) {
+      window.clearTimeout(pollingTimeoutRef.current);
+      pollingTimeoutRef.current = null;
+    }
+    setLoadingFingerprint(false);
+  }
 }
