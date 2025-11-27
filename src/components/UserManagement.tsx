@@ -321,24 +321,26 @@ setStatusFingerprint(`✅ Huella vinculada: ${response.data.fingerprint.fingerpr
   };
 
   // --- Agregar tarjeta TTLock ---
-  const handleAddCard = async () => {
-    setLoadingCard(true);
-    setStatusCard("⏳ Enviando solicitud de tarjeta...");
+  // --- Vincular tarjeta TTLock ---
+const handleLinkCard = async () => {
+  setLoadingCard(true);
+  setStatusCard("⏳ Buscando tarjeta existente en la cerradura...");
 
-    try {
-      const response = await axios.post("http://localhost:5001/api/ttlock/addCard", {
-        correo_usuario: user.correo_usuario,
-      });
+  try {
+    const response = await axios.post("http://localhost:5001/api/ttlock/linkCard", {
+      correo_usuario: user.correo_usuario,
+    });
 
-      setStatusCard("✅ Solicitud enviada. Abre la app TTLock para sincronizar la cerradura.");
-    } catch (err: any) {
-      console.error("Error agregando tarjeta:", err);
-      setStatusCard(err.response?.data?.error || "⚠️ Error al enviar solicitud de tarjeta");
-    } finally {
-      setLoadingCard(false);
-      setTimeout(() => setStatusCard(""), 6000);
-    }
-  };
+    setStatusCard(`✅ Tarjeta vinculada: ${response.data.card.cardName} (ID ${response.data.card.cardId})`);
+  } catch (err: any) {
+    console.error("Error vinculando tarjeta:", err);
+    setStatusCard(err.response?.data?.error || "⚠️ No se pudo vincular tarjeta");
+  } finally {
+    setLoadingCard(false);
+    setTimeout(() => setStatusCard(""), 6000);
+  }
+};
+
   
   return (
     <>
@@ -441,7 +443,7 @@ setStatusFingerprint(`✅ Huella vinculada: ${response.data.fingerprint.fingerpr
             <Button
               variant="secondary"
               className="flex-1"
-              onClick={handleAddCard}
+              onClick={handleLinkCard}
               disabled={loadingCard}
             >
               {loadingCard ? "⏳ Esperando tarjeta..." : "Agregar Tarjeta"}

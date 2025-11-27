@@ -1147,61 +1147,82 @@ app.post("/api/ttlock/linkFingerprint", async (req, res) => {
     res.status(500).json({ error: "Error al vincular huella TTLock" });
   }
 });
-
-// --- Agregar Tarjeta ---
-app.post("/api/ttlock/addCard", async (req, res) => {
-  const { correo_usuario, admin_email } = req.body;
-  if (!correo_usuario) return res.status(400).json({ error: "Correo del usuario requerido" });
+// =======================================================
+// 🧠 TTLOCK: Vincular tarjeta existente y actualizar DB
+// =======================================================
+app.post("/api/ttlock/linkCard", async (req, res) => {
+  const { correo_usuario } = req.body;
+  if (!correo_usuario)
+    return res.status(400).json({ error: "Correo del usuario requerido" });
 
   try {
-    const [users] = await db.promise().query("SELECT * FROM usuarios WHERE correo_usuario = ?", [correo_usuario]);
-    if (users.length === 0) return res.status(404).json({ error: "Usuario no encontrado" });
+    // Buscar usuario
+    const [users] = await db
+      .promise()
+      .query("SELECT * FROM usuarios WHERE correo_usuario = ?", [
+        correo_usuario,
+      ]);
+
+    if (users.length === 0)
+      return res.status(404).json({ error: "Usuario no encontrado" });
+
     const user = users[0];
 
-    // Token TTLock
+    // Obtener accessToken
     const tokenData = await refreshTTLockToken();
     const accessToken = tokenData.access_token;
 
-    // 📡 Petición TTLock
+    // Parámetros TTLock
     const params = new URLSearchParams();
     params.append("clientId", process.env.TTLOCK_CLIENT_ID);
     params.append("accessToken", accessToken);
     params.append("lockId", process.env.TTLOCK_LOCK_ID);
-    params.append("startDate", Math.floor(Date.now() / 1000).toString());
-    params.append("endDate", (Math.floor(Date.now() / 1000) + 31536000).toString()); // 1 año
-    params.append("cardName", `${user.nombre_usuario} ${user.apellido_usuario}`);
+    params.append("pageNo", "1");
+    params.append("pageSize", "200");
+    params.append("orderBy", "0");
+    params.append("date", Date.now().toString());
 
-    const response = await axios.post(`${process.env.TTLOCK_BASE_URL}/v3/card/add`, params);
-    const data = response.data;
-
-    // Guardar ID de tarjeta y estado pendiente
-    await db.promise().query(
-      "UPDATE usuarios SET targeta_usuario = ?, tarjeta_estado = ? WHERE idUsuarios = ?",
-      [data.cardId, "pendiente", user.idUsuarios]
+    // Llamada al endpoint OFICIAL correcto
+    const response = await axios.get(
+      `${process.env.TTLOCK_BASE_URL}/v3/identityCard/list?${params.toString()}`
     );
 
-    // Registrar auditoría
-    await db.promise().query(
-      "INSERT INTO auditoria (correo, accion, entidad, entidad_id, detalle, fecha) VALUES (?, ?, ?, ?, ?, NOW())",
-      [
-        admin_email || "sistema@local",
-        "AGREGAR_TARJETA",
-        "USUARIO",
-        user.idUsuarios,
-        `Solicitud de tarjeta enviada para ${user.nombre_usuario} ${user.apellido_usuario} (ID TTLock ${data.cardId})`,
-      ]
+    const cards = response.data.list || [];
+
+    // Buscar tarjeta por nombre EXACTO
+    const matchedCard = cards.find(
+      (c) =>
+        c.cardName === `${user.nombre_usuario} ${user.apellido_usuario}`
     );
+
+    if (!matchedCard) {
+      return res.status(404).json({
+        error: "No se encontró una tarjeta en la cerradura con este nombre",
+      });
+    }
+
+    // Guardar tarjeta en DB
+    await db.promise().query(
+  "UPDATE usuarios SET targeta_usuario = ? WHERE idUsuarios = ?",
+  [matchedCard.cardId, user.idUsuarios]
+);
+;
 
     res.json({
       success: true,
-      message: "✅ Solicitud enviada. Abre la app TTLock y sincroniza la cerradura para registrar la tarjeta.",
-      data,
+      message: "Tarjeta vinculada correctamente",
+      card: matchedCard,
     });
 
-    console.log("✅ Solicitud de tarjeta enviada:", data);
   } catch (error) {
-    console.error("❌ Error al agregar tarjeta TTLock:", error.response?.data || error.message);
-    res.status(500).json({ error: "Error al enviar solicitud de tarjeta TTLock" });
+    console.error(
+      "❌ Error vinculando tarjeta TTLock:",
+      error.response?.data || error.message
+    );
+    res.status(500).json({
+      error: "Error al vincular tarjeta TTLock",
+      detalle: error.response?.data || error.message,
+    });
   }
 });
 
