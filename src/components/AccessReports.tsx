@@ -58,10 +58,6 @@ export function AccessReports() {
               <SelectItem value="3months">Últimos 3 meses</SelectItem>
             </SelectContent>
           </Select>
-          <Button variant="outline">
-            <Calendar className="w-4 h-4 mr-2" />
-            Rango Personalizado
-          </Button>
           <Button>
             <Download className="w-4 h-4 mr-2" />
             Exportar Reporte

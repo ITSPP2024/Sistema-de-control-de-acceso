@@ -75,34 +75,34 @@ export function ZoneConfig({ currentUser }: any) {
       console.error("Error registrando auditoría:", err);
     }
   };
+  const cargarZonas = async () => {
+  const res = await fetch("http://localhost:5001/api/zonas");
+  const data = await res.json();
+  
+  const loadedZones = data.map((z: any) => ({
+    id: z.idzonas,
+    name: z.nombre_zona,
+    description: z.descripcion_zona || "",
+    accessLevel: z.nivel_seguridad_zona,
+    isActive: z.estado_zona === "Activa",
+    allowedUsers: 0,
+    totalUsers: 0,
+    schedule: `${z.horario_inicio_zona || "--:--"} - ${z.horario_fin_zona || "--:--"}`,
+    requiresEscort: z.requiresEscort === 1,
+    maxOccupancy: z.capacidad_maxima_zona,
+    currentOccupancy: 0,
+    position: { x: z.pos_x || 100, y: z.pos_y || 100 },
+    size: { width: 240, height: 180 },
+    color: "#3b82f6"
+  }));
 
-  // =============================
-  // 🔹 Cargar datos desde backend
+  setZones(loadedZones);
+};
+
+  // Cargar datos desde backend
   // =============================
   useEffect(() => {
-    // Cargar zonas
-    fetch("http://localhost:5001/api/zonas")
-      .then(res => res.json())
-      .then(data => {
-        const loadedZones: Zone[] = data.map((z: any) => ({
-          id: z.idzonas,
-          name: z.nombre_zona,
-          position: { x: z.pos_x || 100, y: z.pos_y || 100 },
-          description: z.descripcion_zona || "",
-          accessLevel: z.nivel_seguridad_zona,
-          isActive: z.estado_zona === "Activa",
-          allowedUsers: 0,
-          totalUsers: 0,
-          schedule: `${z.horario_inicio_zona || "--:--"} - ${z.horario_fin_zona || "--:--"}`,
-          requiresEscort: z.requiresEscort === 1,
-          maxOccupancy: z.capacidad_maxima_zona || 10,
-          currentOccupancy: 0,
-          size: { width: 240, height: 180 },
-          color: "#3b82f6"
-        }));
-        setZones(loadedZones);
-      });
-
+      cargarZonas();
     // Cargar conexiones
     fetch("http://localhost:5001/api/conexiones")
       .then(res => res.json())
@@ -219,7 +219,7 @@ export function ZoneConfig({ currentUser }: any) {
               "MOVER",
               "ZONA",
               movedZone.id,
-              `Zona "${movedZone.name}" movida a x:${movedZone.position.x}, y:${movedZone.position.y}`
+              `Zona "${movedZone.name}" movida`
             );
           }
         } catch (err) {
@@ -331,8 +331,19 @@ export function ZoneConfig({ currentUser }: any) {
         </div>
          <Dialog open={isAddDialogOpen} onOpenChange={(open) => {
   setIsAddDialogOpen(open);
-  if (!open) setEditingZone(null);
+
+  if (!open) {
+    setEditingZone(null);
+    setNewZoneName("");
+    setNewZoneDescription("");
+    setNewZoneAccess("1");
+    setNewZoneMaxOccupancy(10);
+    setNewZoneRequiresEscort(false);
+    setNewZoneStartTime("");
+    setNewZoneEndTime("");
+  }
 }}>
+
   <DialogTrigger asChild>
     <Button>
       <Plus className="w-4 h-4 mr-2" />
@@ -460,14 +471,15 @@ export function ZoneConfig({ currentUser }: any) {
                 });
                 updatedZone = await res.json();
 
+                // CAMBIO: Usar valores del formulario directamente
                 setZones(zones.map(z => z.id === editingZone.id ? {
                   ...z,
-                  name: updatedZone.nombre_zona,
-                  description: updatedZone.descripcion_zona,
-                  accessLevel: updatedZone.nivel_seguridad_zona,
-                  maxOccupancy: updatedZone.capacidad_maxima_zona,
-                  schedule: `${updatedZone.horario_inicio_zona || "--:--"} - ${updatedZone.horario_fin_zona || "--:--"}`,
-                  requiresEscort: updatedZone.requiresEscort || false
+                  name: newZoneName,
+                  description: newZoneDescription,
+                  accessLevel: newZoneAccess,
+                  maxOccupancy: newZoneMaxOccupancy,
+                  schedule: `${newZoneStartTime || "--:--"} - ${newZoneEndTime || "--:--"}`,
+                  requiresEscort: newZoneRequiresEscort
                 } : z));
 
                 // registrar auditoría de edición de zona
@@ -475,7 +487,7 @@ export function ZoneConfig({ currentUser }: any) {
                   "EDITAR",
                   "ZONA",
                   editingZone.id,
-                  `Zona "${updatedZone.nombre_zona}" (ID ${editingZone.id}) modificada`
+                  `Zona "${newZoneName}" (ID ${editingZone.id}) modificada`
                 );
               } else {
                 res = await fetch("http://localhost:5001/api/zonas", {
@@ -485,32 +497,31 @@ export function ZoneConfig({ currentUser }: any) {
                 });
                 updatedZone = await res.json();
 
-                setZones([
-                  ...zones,
-                  {
-                    id: updatedZone.idzonas,
-                    name: updatedZone.nombre_zona,
-                    description: updatedZone.descripcion_zona,
-                    accessLevel: updatedZone.nivel_seguridad_zona,
-                    isActive: true,
-                    allowedUsers: 0,
-                    totalUsers: 0,
-                    schedule: `${newZoneStartTime || "--:--"} - ${newZoneEndTime || "--:--"}`,
-                    requiresEscort: updatedZone.requiresEscort || false,
-                    maxOccupancy: updatedZone.capacidad_maxima_zona,
-                    currentOccupancy: 0,
-                    position: { x: 100, y: 100 },
-                    size: { width: 240, height: 180 },
-                    color: "#3b82f6",
-                  },
-                ]);
+                // CAMBIO: Añadir la nueva zona directamente al estado
+                const nuevaZona: Zone = {
+                  id: updatedZone.idzonas || updatedZone.id,
+                  name: newZoneName,
+                  description: newZoneDescription,
+                  accessLevel: newZoneAccess,
+                  isActive: true,
+                  allowedUsers: 0,
+                  totalUsers: 0,
+                  schedule: `${newZoneStartTime || "--:--"} - ${newZoneEndTime || "--:--"}`,
+                  requiresEscort: newZoneRequiresEscort,
+                  maxOccupancy: newZoneMaxOccupancy,
+                  currentOccupancy: 0,
+                  position: { x: 100, y: 100 },
+                  size: { width: 240, height: 180 },
+                  color: "#3b82f6"
+                };
+                setZones(prev => [...prev, nuevaZona]);
 
                 // registrar auditoría de creación de zona
                 await registrarAuditoria(
                   "CREAR",
                   "ZONA",
-                  updatedZone.idzonas,
-                  `Zona "${updatedZone.nombre_zona}" creada (ID ${updatedZone.idzonas})`
+                  updatedZone.idzonas || updatedZone.id,
+                  `Zona "${newZoneName}" creada (ID ${updatedZone.idzonas || updatedZone.id})`
                 );
               }
 
@@ -523,6 +534,7 @@ export function ZoneConfig({ currentUser }: any) {
               setNewZoneRequiresEscort(false);
               setNewZoneStartTime("");
               setNewZoneEndTime("");
+
             } catch (err) {
               console.error(err);
               alert("Error al guardar la zona");

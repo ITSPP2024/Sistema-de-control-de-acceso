@@ -68,7 +68,7 @@ export function UserManagement({ currentUser }: any) {
     if (!currentUser) return;
     try {
       await axios.post("http://localhost:5001/api/auditoria", {
-        correo: currentUser,  // 👈 el mismo email que ves en App.tsx
+        correo: currentUser,  // el mismo email que esta en App.tsx
         accion,
         entidad,
         entidad_id,
@@ -120,7 +120,6 @@ export function UserManagement({ currentUser }: any) {
     setEditingUser({ ...user });
     setIsEditDialogOpen(true);
   };
-
   const handleSaveEdit = async () => {
     if (editingUser) {
       try {

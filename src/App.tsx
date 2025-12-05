@@ -11,6 +11,10 @@ import { SecurityAlerts } from "./components/SecurityAlerts";
 import { AccessReports } from "./components/AccessReports";
 import { CompanyProfile } from "./components/CompanyProfile";
 import { Login } from "./components/Login";
+import { ScrollArea } from "./components/ui/scroll-area";
+import { Badge } from "./components/ui/badge";
+import { Clock } from "lucide-react";
+
 import {
   LayoutDashboard,
   Users,
@@ -40,7 +44,7 @@ export default function App() {
   const [alerts, setAlerts] = useState([]);
   const [showAlerts, setShowAlerts] = useState(false);
 
-  // 🔹 Obtener datos de empresa y mantener actualizados
+  // Obtener datos de empresa y mantener actualizados
   useEffect(() => {
     const fetchCompanyData = () => {
       axios
@@ -52,7 +56,7 @@ export default function App() {
             primary_color: res.data.primary_color || "#2563eb",
             secondary_color: res.data.secondary_color || "#ffffff",
             accent_color: res.data.accent_color || "#0ea5e9",
-            logo: res.data.logo || "" // 👈 Cargar logo desde backend
+            logo: res.data.logo || ""
           };
 
           // Solo actualiza si cambió algo
@@ -75,7 +79,7 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  // 🔔 Obtener alertas activas en tiempo real (cada 5 segundos)
+  // Obtener alertas activas en tiempo real (cada 5 segundos)
   useEffect(() => {
     const fetchAlerts = () => {
       axios.get("http://localhost:5001/api/dashboard/alerts-detail")
@@ -115,108 +119,172 @@ export default function App() {
     <div className="min-h-screen" style={{ backgroundColor: companyData.secondary_color }}>
       {/* Header */}
       <header className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
+  <div className="flex items-center justify-between">
 
-            {/* 👇 Mostrar logo si existe, de lo contrario el ícono Shield */}
-            {companyData.logo ? (
-              <img
-                src={`http://localhost:5001${companyData.logo}?t=${Date.now()}`}
-                alt="Logo Empresa"
-                className="w-10 h-10 rounded-md object-cover"
-              />
-            ) : (
-              <div
-                className="flex items-center justify-center w-10 h-10"
-                style={{ backgroundColor: companyData.primary_color, borderRadius: 8 }}
-              >
-                <Shield className="w-6 h-6 text-white" />
-              </div>
-            )}
+    {/* LADO IZQUIERDO - LOGO + NOMBRE */}
+    <div className="flex items-center space-x-3">
 
-            <div>
-              <h1 className="text-xl font-semibold" style={{ color: companyData.primary_color }}>
-                {companyData.name}
-              </h1>
-              <p className="text-sm text-muted-foreground">{companyData.description}</p>
-            </div>
-          </div>
+      {/* Logo */}
+      {companyData.logo ? (
+        <img
+          src={`http://localhost:5001${companyData.logo}?t=${Date.now()}`}
+          alt="Logo Empresa"
+          className="w-10 h-10 rounded-md object-cover"
+        />
+      ) : (
+        <div
+          className="flex items-center justify-center w-10 h-10"
+          style={{ backgroundColor: companyData.primary_color, borderRadius: 8 }}
+        >
+          <Shield className="w-6 h-6 text-white" />
+        </div>
+      )}
 
-          {/* 🔔 Botón de alertas dinámicas */}
-          <div className="flex items-center space-x-3 relative">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowAlerts(!showAlerts)}
-              className="relative"
-            >
-              <Bell className="w-4 h-4 mr-2" />
-              {alerts.length} Alertas
-            </Button>
+      <div>
+        <h1 className="text-xl font-semibold" style={{ color: companyData.primary_color }}>
+          {companyData.name}
+        </h1>
+        <p className="text-sm text-muted-foreground">{companyData.description}</p>
+      </div>
+    </div>
 
-            {/* Popup de alertas */}
-            {showAlerts && (
-              <div
-                className="absolute right-0 top-200 w-80 bg-white shadow-xl border border-gray-200 rounded-xl z-50 p-3 transition-all duration-200 transform origin-top scale-100 hover:scale-[1.01]"
-                onMouseLeave={() => setShowAlerts(false)}
-              >
-                <h4 className="font-semibold text-gray-800 mb-2 flex justify-between items-center">
-                  Alertas Activas
+    {/* LADO DERECHO - NOTIFICACIONES + USUARIO */}
+    <div className="flex items-center space-x-4">
+
+      {/* 🔔 Botón de alertas */}
+      <div className="relative">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowAlerts(!showAlerts)}
+        >
+          <Bell className="w-4 h-4 mr-2" />
+          {alerts.length} Alertas
+        </Button>
+
+        {showAlerts && (
+          <div className="fixed inset-0 z-40 flex justify-end items-start pt-20 pr-6">
+
+            {/* Cerrar al clickear fuera */}
+            <div
+              className="absolute inset-0 bg-black/0"
+              onClick={() => setShowAlerts(false)}
+            />
+
+            {/* Card de notificaciones */}
+            <Card className="relative z-50 w-96 shadow-xl border bg-white rounded-lg">
+
+              {/* Header */}
+              <div className="flex items-center justify-between px-4 py-3 border-b">
+                <div>
+                  <h3 className="font-semibold">Notificaciones</h3>
+                  <p className="text-xs text-muted-foreground">
+                    {alerts.length} activas
+                  </p>
+                </div>
+
+                {alerts.length > 0 && (
                   <Button
                     variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 text-gray-500 hover:text-red-500"
-                    onClick={() => setShowAlerts(false)}
+                    size="sm"
+                    onClick={() => setAlerts([])}
+                    className="text-xs"
                   >
-                    ✕
+                    Limpiar
                   </Button>
-                </h4>
+                )}
+              </div>
 
-                <div className="max-h-80 overflow-y-auto pr-2 custom-scrollbar">
+              {/* Lista */}
+              <ScrollArea className="max-h-[350px]">
+                <div className="divide-y">
                   {alerts.length === 0 ? (
-                    <p className="text-sm text-gray-500 py-2">No hay alertas activas</p>
+                    <p className="text-sm text-center text-gray-500 py-6">
+                      No hay alertas
+                    </p>
                   ) : (
-                    alerts.map(alert => (
+                    alerts.slice(0, 4).map((alert) => (
                       <div
                         key={alert.id}
-                        className="border-b border-gray-100 py-2 last:border-b-0 hover:bg-gray-50 rounded-md px-2"
+                        className="p-4 hover:bg-gray-50 transition-colors cursor-pointer bg-blue-50/20"
                       >
-                        <p className="text-sm font-medium text-gray-800">{alert.message}</p>
-                        {alert.detalle && (
-                          <p className="text-xs text-gray-500">{alert.detalle}</p>
-                        )}
-                        <p className="text-xs text-gray-400">{alert.time}</p>
+                        <div className="flex items-start space-x-3">
+                          <span className="text-red-500 text-lg mt-1">⚠️</span>
+
+                          <div className="flex-1 space-y-1">
+                            <div className="flex items-center justify-between">
+                              <p className="text-sm font-medium">{alert.message}</p>
+                              <Badge variant="default" className="ml-2 h-5 px-1.5 text-xs">
+                                Activa
+                              </Badge>
+                            </div>
+
+                            {alert.detalle && (
+                              <p className="text-sm text-muted-foreground">
+                                {alert.detalle}
+                              </p>
+                            )}
+
+                            <div className="flex items-center text-xs text-muted-foreground">
+                              <Clock className="w-3 h-3 mr-1" />
+                              {alert.time}
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     ))
                   )}
                 </div>
-              </div>
-            )}
+              </ScrollArea>
 
-            {/* Usuario actual */}
-            <div className="flex items-center space-x-3">
-              <div className="text-right mr-2">
-                <p className="text-sm font-medium">{currentUser?.split("@")[0]}</p>
-                <p className="text-xs text-muted-foreground">{currentUser}</p>
+              {/* Footer */}
+              <div className="px-4 py-3 border-t bg-gray-50">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => {
+                    setShowAlerts(false);
+                    setActiveTab("alerts");
+                  }}
+                >
+                  Ver todas las alertas
+                </Button>
               </div>
-              <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                <span className="text-sm font-medium text-blue-600">
-                  {currentUser?.charAt(0).toUpperCase()}
-                </span>
-              </div>
-              <Button variant="ghost" size="sm" onClick={handleLogout} className="ml-2">
-                <LogOut className="w-4 h-4" />
-              </Button>
-            </div>
+
+            </Card>
           </div>
+        )}
+      </div>
+
+      {/* Usuario */}
+      <div className="flex items-center space-x-3">
+        <div className="text-right mr-2">
+          <p className="text-sm font-medium">{currentUser?.split("@")[0]}</p>
+          <p className="text-xs text-muted-foreground">{currentUser}</p>
         </div>
-      </header>
+
+        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+          <span className="text-sm font-medium text-blue-600">
+            {currentUser?.charAt(0).toUpperCase()}
+          </span>
+        </div>
+
+        <Button variant="ghost" size="sm" onClick={handleLogout} className="ml-2">
+          <LogOut className="w-4 h-4" />
+        </Button>
+      </div>
+
+    </div>
+  </div>
+</header>
+
 
       {/* Tabs */}
       <div className="px-6 py-6">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="grid w-full grid-cols-7 mb-6">
-            <TabsTrigger value="dashboard"><LayoutDashboard className="w-4 h-4 mr-1" />Dashboard</TabsTrigger>
+            <TabsTrigger value="dashboard"><LayoutDashboard className="w-4 h-4 mr-1" />Inicio</TabsTrigger>
             <TabsTrigger value="users"><Users className="w-4 h-4 mr-1" />Usuarios</TabsTrigger>
             <TabsTrigger value="logs"><FileText className="w-4 h-4 mr-1" />Registros</TabsTrigger>
             <TabsTrigger value="zones"><Settings className="w-4 h-4 mr-1" />Zonas</TabsTrigger>

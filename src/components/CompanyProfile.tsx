@@ -90,7 +90,6 @@ export function CompanyProfile({ currentUser }: any) {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
-      // ✅ CORREGIDO: tipado en prev
       setCompanyData((prev: typeof companyData) => ({ ...prev, logo: res.data.logo }));
 
       await registrarAuditoria("EDITAR", `El usuario ${currentUser} actualizó el logo de la empresa.`);

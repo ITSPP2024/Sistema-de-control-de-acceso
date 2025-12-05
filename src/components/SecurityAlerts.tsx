@@ -25,7 +25,7 @@ export function SecurityAlerts() {
   const [accionFilter, setAccionFilter] = useState("all");
   const [entidadFilter, setEntidadFilter] = useState("all");
 
-  // 🔵 Función formateadora de fechas
+  //  Función formateadora de fechas
   const formatFecha = (fechaString: string) => {
     const fecha = new Date(fechaString);
     const fechaPart = fecha.toISOString().split("T")[0]; // YYYY-MM-DD
@@ -33,7 +33,7 @@ export function SecurityAlerts() {
     return `${fechaPart}   ${horaPart}`; // ← Separación extra
   };
 
-  // 🔵 Cargar datos reales desde el backend
+  //  Cargar datos desde el backend
   const loadAuditoriaRecords = async () => {
     try {
       setLoading(true);
@@ -87,7 +87,7 @@ export function SecurityAlerts() {
     const link = document.createElement("a");
 
     link.href = url;
-    link.download = `auditoria_${new Date().toISOString().split("T")[0]}.csv`;
+    link.download = `Auditoría_${new Date().toISOString().split("T")[0]}.csv`;
     link.click();
   };
 

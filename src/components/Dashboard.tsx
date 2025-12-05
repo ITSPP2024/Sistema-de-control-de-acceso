@@ -15,7 +15,7 @@ export function Dashboard() {
 
   const [recentAccesses, setRecentAccesses] = useState([]);
 
-  // 📡 Obtener estadísticas del dashboard
+  // Obtener estadísticas del dashboard
   useEffect(() => {
     fetch("http://localhost:5001/api/dashboard/stats")
       .then(res => res.json())
@@ -31,7 +31,7 @@ export function Dashboard() {
   return (
     <div className="space-y-6">
       <div>
-        <h2>Dashboard de Seguridad</h2>
+        <h2>Resumen de Seguridad</h2>
         <p className="text-muted-foreground">
           Control de acceso y monitoreo en tiempo real
         </p>

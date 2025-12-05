@@ -72,7 +72,7 @@ export function AccessLog() {
     XLSX.utils.book_append_sheet(workbook, worksheet, "Accesos");
     const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
     const blob = new Blob([excelBuffer], { type: "application/octet-stream" });
-    saveAs(blob, `registro_accesos_${new Date().toISOString()}.xlsx`);
+    saveAs(blob, `Registro_Accesos_${new Date().toISOString()}.xlsx`);
   };
 
   const calcularDuracion = (inicio: string, fin: string | null) => {
@@ -135,10 +135,6 @@ export function AccessLog() {
             </SelectContent>
           </Select>
 
-          <Button variant="outline" className="w-full">
-            <Calendar className="w-4 h-4 mr-2" />
-            Rango de Fechas
-          </Button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 p-4 bg-gray-50 rounded-lg">
