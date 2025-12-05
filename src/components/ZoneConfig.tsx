@@ -673,12 +673,6 @@ export function ZoneConfig({ currentUser }: any) {
 
                   {/* Botones de acción */}
                   <div className="flex space-x-2 pt-2">
-                    <Button variant="outline" size="sm" className="flex-1">
-                      Ver Permisos
-                    </Button>
-                    <Button variant="outline" size="sm" className="flex-1">
-                      Historial
-                    </Button>
                   </div>
                 </div>
               </Card>
@@ -1024,14 +1018,7 @@ export function ZoneConfig({ currentUser }: any) {
                     </div>
 
                     <div className="pt-4 border-t space-y-2">
-                      <Button variant="outline" className="w-full" size="sm">
-                        <Settings className="w-4 h-4 mr-2" />
-                        Configurar Zona
-                      </Button>
-                      <Button variant="outline" className="w-full" size="sm">
-                        <Activity className="w-4 h-4 mr-2" />
-                        Ver Flujo de Accesos
-                      </Button>
+                      
                     </div>
                   </div>
                 ) : (
