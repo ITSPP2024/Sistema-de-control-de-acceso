@@ -216,7 +216,6 @@ export function UserManagement({ currentUser }: any) {
               <TableHead>Zona</TableHead>
               <TableHead>Tarjeta RFID</TableHead>
               <TableHead>Estado</TableHead>
-              <TableHead>Último Acceso</TableHead>
               <TableHead>Acciones</TableHead>
             </TableRow>
           </TableHeader>
@@ -247,7 +246,6 @@ export function UserManagement({ currentUser }: any) {
                 <TableCell>
                   <Badge variant={getStatusColor(user.status || "Activo")}>{user.status || "Activo"}</Badge>
                 </TableCell>
-                <TableCell className="text-sm text-muted-foreground">{user.lastAccess || "-"}</TableCell>
                 <TableCell>
                   <div className="flex space-x-2">
                     <Button variant="outline" size="sm" title="Editar usuario" onClick={() => handleEditClick(user)}>

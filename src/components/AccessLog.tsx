@@ -17,7 +17,7 @@ interface AccessLogItem {
   nombre_zona: string | null;
   tipo_acceso: string;
   estado_acceso: string;
-  tarjeta_id: string | null;
+  motivo_rechazo_acceso: string | null;
 }
 
 export function AccessLog() {
@@ -37,8 +37,7 @@ export function AccessLog() {
   const filteredLogs = accessLogs.filter(log => {
     const matchesSearch =
       (log.nombre_usuario || "Usuario Desconocido").toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (log.nombre_zona || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (log.tarjeta_id || "-").toLowerCase().includes(searchTerm.toLowerCase());
+      (log.nombre_zona || "").toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesStatus = statusFilter === "all" || log.estado_acceso.toLowerCase() === statusFilter;
     const matchesZone = zoneFilter === "all" || (log.nombre_zona || "").toLowerCase() === zoneFilter;
@@ -49,38 +48,58 @@ export function AccessLog() {
   const getStatusColor = (status: string) => (status === "Autorizado" ? "default" : "destructive");
   const getAccessTypeColor = (type: string) => (type === "RFID" ? "secondary" : "default");
 
-  const handleRefresh = () => {
-    fetch("http://localhost:5001/api/accesos")
-      .then(res => res.json())
-      .then(data => setAccessLogs(data))
-      .catch(err => console.error("Error al actualizar accesos:", err));
-  };
-
   const handleExport = () => {
     const exportData = filteredLogs.map(log => ({
-      "Fecha Inicio": log.fecha_inicio_acceso,
-      "Fecha Fin": log.fecha_fin_acceso || "-",
+      "Fecha": log.fecha_inicio_acceso,
       "Usuario": log.nombre_usuario || "Usuario Desconocido",
       "Zona": log.nombre_zona || "-",
       "Tipo de Acceso": log.tipo_acceso,
       "Estado": log.estado_acceso,
-      "Tarjeta/ID": log.tarjeta_id || "-"
+      "Motivo": log.motivo_rechazo_acceso || "Todos los requerimientos cumplidos"
     }));
 
-    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const worksheet = XLSX.utils.json_to_sheet([]);
+    
+    const fechaActual = new Date().toLocaleDateString("es-ES", {
+      day: "2-digit",
+      month: "long",
+      year: "numeric"
+    });
+
+    XLSX.utils.sheet_add_aoa(worksheet, [
+      ["REGISTRO DE ACCESOS"],
+      [`Generado el: ${fechaActual}`],
+      [],
+    ], { origin: "A1" });
+
+    XLSX.utils.sheet_add_json(worksheet, exportData, { origin: "A4", skipHeader: false });
+
+    worksheet["!merges"] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 5 } },
+      { s: { r: 1, c: 0 }, e: { r: 1, c: 5 } },
+    ];
+
+    worksheet["!cols"] = [
+      { wch: 22 },
+      { wch: 25 },
+      { wch: 20 },
+      { wch: 15 },
+      { wch: 12 },
+      { wch: 35 },
+    ];
+
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Accesos");
     const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
     const blob = new Blob([excelBuffer], { type: "application/octet-stream" });
-    saveAs(blob, `Registro_Accesos_${new Date().toISOString()}.xlsx`);
-  };
-
-  const calcularDuracion = (inicio: string, fin: string | null) => {
-    if (!fin) return "-";
-    const diff = new Date(fin).getTime() - new Date(inicio).getTime();
-    const h = Math.floor(diff / 1000 / 60 / 60);
-    const m = Math.floor((diff / 1000 / 60) % 60);
-    return `${h}h ${m}m`;
+    
+    const fechaArchivo = new Date().toLocaleDateString("es-ES", {
+      day: "2-digit",
+      month: "2-digit", 
+      year: "numeric"
+    }).replace(/\//g, "-");
+    
+    saveAs(blob, `Registro_Accesos_${fechaArchivo}.xlsx`);
   };
 
   return (
@@ -91,10 +110,6 @@ export function AccessLog() {
           <p className="text-muted-foreground">Historial completo de entradas y salidas</p>
         </div>
         <div className="flex space-x-2">
-          <Button variant="outline" onClick={handleRefresh}>
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Actualizar
-          </Button>
           <Button variant="outline" onClick={handleExport}>
             <Download className="w-4 h-4 mr-2" />
             Exportar
@@ -105,7 +120,7 @@ export function AccessLog() {
       <Card className="p-6">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
           <Input
-            placeholder="Buscar usuario, zona o tarjeta..."
+            placeholder="Buscar usuario o zona..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -163,9 +178,8 @@ export function AccessLog() {
               <TableHead>Usuario</TableHead>
               <TableHead>Zona</TableHead>
               <TableHead>Tipo de Acceso</TableHead>
-              <TableHead>Tarjeta/ID</TableHead>
               <TableHead>Estado</TableHead>
-              <TableHead>Duración</TableHead>
+              <TableHead>Motivo</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -180,17 +194,10 @@ export function AccessLog() {
                   <Badge variant={getAccessTypeColor(log.tipo_acceso)}>{log.tipo_acceso}</Badge>
                 </TableCell>
                 <TableCell>
-                  {log.tarjeta_id ? (
-                    <code className="bg-gray-100 px-2 py-1 rounded text-sm">{log.tarjeta_id}</code>
-                  ) : (
-                    <span className="text-muted-foreground">-</span>
-                  )}
-                </TableCell>
-                <TableCell>
                   <Badge variant={getStatusColor(log.estado_acceso)}>{log.estado_acceso}</Badge>
                 </TableCell>
                 <TableCell className="text-sm">
-                  {calcularDuracion(log.fecha_inicio_acceso, log.fecha_fin_acceso)}
+                  {log.motivo_rechazo_acceso || "Todos los requerimientos cumplidos"}
                 </TableCell>
               </TableRow>
             ))}
